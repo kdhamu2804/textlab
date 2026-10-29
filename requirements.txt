@@ -1,0 +1,27 @@
+# Data
+pandas>=2.2
+numpy>=1.26
+datasets>=2.19
+
+# Classical ML baselines
+scikit-learn>=1.5
+joblib>=1.4
+
+# Transformer inference (training runs on Google Colab)
+torch>=2.3
+transformers>=4.44
+
+# Charts
+matplotlib>=3.8
+
+# Backend
+fastapi>=0.111
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+httpx>=0.27
+
+# Testing, linting and notebooks
+pytest>=8.2
+ruff>=0.6
+ipykernel>=6.29

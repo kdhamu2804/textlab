@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Dataset files (re-created by `python -m scripts.prepare_data`)
+data/raw/
+data/processed/
+
+# Course documents in the project folder
+*.docx
+*.pdf
+
+# Tool caches
+.ruff_cache/
+
+# Saved models (large files)
+models/*
+!models/.gitkeep
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Environment and editor
+.env
+.vscode/
+.idea/
+
+# OS and Office temp files
+Thumbs.db
+.DS_Store
+~$*
+
+# TypeScript build cache
+*.tsbuildinfo

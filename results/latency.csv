@@ -1,0 +1,2 @@
+model_name,n_requests,server_mean_ms,server_p95_ms,client_mean_ms,client_p95_ms,goal_ms,meets_goal
+tfidf,715,0.6322237762237761,0.73,1.6894244754986538,2.018429967574774,1000.0,True
