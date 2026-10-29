@@ -1,5 +1,5 @@
-# Builds the whole app (website + API) for Hugging Face Spaces or any Docker host.
-# The site and the API are served together by FastAPI on port 7860.
+# Builds the whole app (website + API) for Render or any Docker host.
+# The site and the API are served together by FastAPI.
 
 # --- Stage 1: build the React website -------------------------------------
 FROM node:22-slim AS web
@@ -31,5 +31,6 @@ RUN if [ ! -f models/tfidf/model.joblib ]; then \
       python -m scripts.prepare_data && python -m scripts.train_baselines; \
     fi
 
+# Hosts such as Render set $PORT; default to 7860 otherwise.
 EXPOSE 7860
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["sh", "-c", "exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
