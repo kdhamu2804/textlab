@@ -1,0 +1,9 @@
+# Render Blueprint: one free web service built from the Dockerfile.
+# Deploy: https://render.com/deploy?repo=https://github.com/kdhamu2804/textlab
+services:
+  - type: web
+    name: textlab
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true

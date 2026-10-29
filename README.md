@@ -1,14 +1,3 @@
----
-title: TextLab Stress Detection
-emoji: 🌿
-colorFrom: green
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: Research demo that detects stress in Reddit posts
----
-
 # Mental Health Detection from Text: A Web App That Finds Stress in Reddit Posts
 
 **Team TextLab** · MS in Artificial Intelligence, Saint Louis University · NLP final project (application track)
@@ -27,6 +16,7 @@ React + TypeScript frontend.
 - [Install](#install)
 - [Run the pipeline](#run-the-pipeline)
 - [Run the app](#run-the-app)
+- [Deploy (Render, free)](#deploy-render-free)
 - [Train RoBERTa on Colab](#train-roberta-on-colab)
 - [Screenshots](#screenshots)
 - [Method](#method)
@@ -162,6 +152,17 @@ cd frontend
 npm run dev
 ```
 Open <http://localhost:5173>.
+
+## Deploy (Render, free)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kdhamu2804/textlab)
+
+`render.yaml` defines one free web service built from the `Dockerfile`. The image builds the website, downloads
+Dreaddit, trains the TF-IDF model (seed 42, so it is the same model as locally) and serves the website and API
+together on one URL. Every push to `main` redeploys automatically.
+
+On the free plan the service sleeps after 15 minutes without visitors, so the first visit after that takes about a
+minute. It has 512 MB of memory: enough for TF-IDF, but too little for RoBERTa.
 
 ## Train RoBERTa on Colab
 
