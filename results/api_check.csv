@@ -1,0 +1,2 @@
+model_name,n_posts,n_label_match,label_match_pct,max_prob_diff
+tfidf,715,715,100.0,4.980433672840956e-05
