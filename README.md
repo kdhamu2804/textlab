@@ -2,6 +2,9 @@
 
 **Team TextLab** · MS in Artificial Intelligence, Saint Louis University · NLP final project (application track)
 
+**Live demo: <https://textlab-q3ec.onrender.com>** (free hosting: the first visit after a quiet spell can take
+about a minute to wake up). API docs: <https://textlab-q3ec.onrender.com/docs>
+
 A user pastes a post; the app answers **"stress"** or **"no stress"** with a confidence score.
 Behind it: three models trained and evaluated on the Dreaddit dataset, a FastAPI backend, and a
 React + TypeScript frontend.
