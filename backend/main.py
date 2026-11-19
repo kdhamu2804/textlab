@@ -6,11 +6,14 @@ Then open http://localhost:8000/docs
 """
 
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import Lock
 
-from fastapi import FastAPI, Request
+import pandas as pd
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -20,14 +23,19 @@ from backend.config import Settings, get_settings
 from backend.schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
+    ExplainResponse,
     HealthResponse,
+    LabelSheet,
+    LabelUpdate,
     MetricsResponse,
     ModelInfoResponse,
     PredictionOut,
     PredictRequest,
     PredictResponse,
+    SegmentOut,
 )
 from backend.service import load_metrics, model_info, timed_predict
+from ml.annotation import annotator_items, set_label
 from ml.predictors import Prediction, Predictor, load_predictor
 
 logger = logging.getLogger("textlab.api")
@@ -55,7 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.predictor = load_predictor(settings.roberta_dir, settings.tfidf_dir)
+        app.state.predictor = load_predictor(settings.roberta_dir, settings.tfidf_dir, settings.onnx_dir)
         logger.info("Loaded model %r from %s", app.state.predictor.name, app.state.predictor.model_dir)
         yield
 
@@ -92,6 +100,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return PredictResponse(**_prediction_out(result).model_dump(),
                                model_name=model.name, latency_ms=round(latency, 2))
 
+    @app.post("/explain", response_model=ExplainResponse, tags=["prediction"])
+    def explain(body: PredictRequest, request: Request) -> ExplainResponse:
+        """Classify one post and show which words (TF-IDF) or sentences (RoBERTa) drove the result."""
+        model = predictor(request)
+        start = time.perf_counter()
+        (result,) = model.predict([body.text])
+        explanation = model.explain(body.text)
+        latency = (time.perf_counter() - start) * 1000
+        logger.info("explain label=%s segments=%d latency_ms=%.1f",
+                    result.label, len(explanation.segments), latency)
+        return ExplainResponse(
+            **_prediction_out(result).model_dump(),
+            text=body.text,
+            unit=explanation.unit,
+            method=explanation.method,
+            segments=[SegmentOut(**vars(s)) for s in explanation.segments],
+            model_name=model.name,
+            latency_ms=round(latency, 2),
+        )
+
     @app.post("/predict/batch", response_model=BatchPredictResponse, tags=["prediction"])
     def predict_batch(body: BatchPredictRequest, request: Request) -> BatchPredictResponse:
         """Classify several posts in one request."""
@@ -104,7 +132,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/metrics", response_model=MetricsResponse, tags=["results"])
     def metrics() -> MetricsResponse:
         """Evaluation results saved in results/ (for the Results page)."""
-        return MetricsResponse(**load_metrics(settings.results_dir))
+        return MetricsResponse(**load_metrics(
+            settings.results_dir, settings.error_groups_file,
+            settings.label_check_file if settings.labeling_enabled else None,
+        ))
+
+    label_lock = Lock()
+
+    def _label_sheet(annotator: str) -> LabelSheet:
+        if not settings.labeling_enabled:
+            raise HTTPException(status_code=403, detail="Labelling is switched off on this server.")
+        if not settings.label_check_file.exists():
+            raise HTTPException(status_code=404, detail="No label check file. Run `python -m scripts.make_label_check`.")
+        try:
+            items = annotator_items(pd.read_csv(settings.label_check_file, dtype={"id": str}), annotator)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Unknown annotator {annotator!r}.") from None
+        done = sum(item["label"] is not None for item in items)
+        return LabelSheet(annotator=annotator, items=items, n_done=done, n_total=len(items))
+
+    @app.get("/label-check/{annotator}", response_model=LabelSheet, tags=["label check"])
+    def get_labels(annotator: str) -> LabelSheet:
+        """One team member's label-check posts and labels (the dataset label is not shown)."""
+        return _label_sheet(annotator)
+
+    @app.put("/label-check/{annotator}/{post_id}", response_model=LabelSheet, tags=["label check"])
+    def put_label(annotator: str, post_id: str, body: LabelUpdate) -> LabelSheet:
+        """Save one label: 1 = stress, 0 = no stress, null = clear."""
+        _label_sheet(annotator)  # validates settings and annotator
+        with label_lock:
+            try:
+                set_label(settings.label_check_file, annotator, post_id, body.label)
+            except KeyError:
+                raise HTTPException(status_code=404, detail=f"Unknown post {post_id!r}.") from None
+        return _label_sheet(annotator)
 
     if (settings.frontend_dist / "index.html").exists():
         _serve_frontend(app, settings.frontend_dist)

@@ -55,3 +55,33 @@ def agreement_report(df: pd.DataFrame) -> pd.DataFrame:
         for b in ANNOTATORS[i + 1:]:
             rows.append({"rater_a": a, "rater_b": b, **_agreement(labels[a], labels[b])})
     return pd.DataFrame(rows)
+
+
+def annotator_items(df: pd.DataFrame, annotator: str) -> list[dict]:
+    """Posts for one annotator with their current label (None if not labelled yet).
+
+    The dataset label is deliberately left out so it cannot bias the annotator.
+    """
+    if annotator not in ANNOTATORS:
+        raise KeyError(annotator)
+    labels = _clean_labels(df[annotator])
+    return [
+        {"id": str(i), "text": t, "label": None if pd.isna(lab) else int(lab)}
+        for i, t, lab in zip(df["id"], df["text"], labels, strict=True)
+    ]
+
+
+def set_label(path: Path, annotator: str, post_id: str, label: int | None) -> pd.DataFrame:
+    """Save one annotator's label (1, 0, or None to clear) for one post and return the table."""
+    if annotator not in ANNOTATORS:
+        raise KeyError(annotator)
+    if label not in (0, 1, None):
+        raise ValueError("label must be 0, 1 or None")
+    df = pd.read_csv(path, dtype={"id": str})
+    rows = df.index[df["id"] == post_id]
+    if len(rows) != 1:
+        raise KeyError(post_id)
+    df[annotator] = df[annotator].astype("Int64")
+    df.loc[rows[0], annotator] = pd.NA if label is None else label
+    df.to_csv(path, index=False)
+    return df

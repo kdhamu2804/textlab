@@ -60,6 +60,50 @@ class PredictResponse(PredictionOut):
     latency_ms: float
 
 
+class SegmentOut(BaseModel):
+    """One word or sentence of the post and its influence on the prediction."""
+
+    text: str
+    start: int = Field(..., description="Character offset in the submitted (stripped) text")
+    end: int
+    score: float = Field(..., ge=-1, le=1, description="+ pushes toward stress, - toward no stress")
+    delta: float | None = Field(None, description="Drop in P(stress) when removed (occlusion only)")
+
+
+class ExplainResponse(PredictionOut):
+    """Response of ``POST /explain``: the prediction plus per-segment influence."""
+
+    text: str = Field(..., description="The post as analysed (whitespace stripped)")
+    unit: Literal["word", "sentence"]
+    method: str
+    segments: list[SegmentOut]
+    model_name: str
+    latency_ms: float
+
+
+class LabelItem(BaseModel):
+    """One post of the label check (dataset label hidden)."""
+
+    id: str
+    text: str
+    label: Literal[0, 1] | None
+
+
+class LabelSheet(BaseModel):
+    """Response of ``GET /label-check/{annotator}``."""
+
+    annotator: str
+    items: list[LabelItem]
+    n_done: int
+    n_total: int
+
+
+class LabelUpdate(BaseModel):
+    """Body of ``PUT /label-check/{annotator}/{post_id}``: 1 = stress, 0 = no stress, null = clear."""
+
+    label: Literal[0, 1] | None
+
+
 class BatchPredictResponse(BaseModel):
     """Response of ``POST /predict/batch``."""
 
@@ -84,6 +128,7 @@ class ModelInfoResponse(BaseModel):
     test_f1: float | None
     test_f1_ci: tuple[float, float] | None
     trained_at: str | None
+    temperature: float | None = Field(None, description="Calibration temperature (RoBERTa only)")
     max_text_chars: int
 
 
@@ -94,3 +139,9 @@ class MetricsResponse(BaseModel):
     api_check: dict[str, Any] | None = None
     latency: dict[str, Any] | None = None
     errors: list[dict[str, Any]] | None = None
+    confusion: list[dict[str, Any]] | None = None
+    significance: list[dict[str, Any]] | None = None
+    calibration: list[dict[str, Any]] | None = None
+    calibration_summary: list[dict[str, Any]] | None = None
+    temperature: dict[str, Any] | None = None
+    label_agreement: list[dict[str, Any]] | None = None

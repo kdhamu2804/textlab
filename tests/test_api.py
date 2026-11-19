@@ -19,7 +19,7 @@ STRESS_TEXT = "I am terrified, I can't sleep and I have panic attacks every nigh
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
     """API client that always uses the TF-IDF model (no RoBERTa folder)."""
-    settings = Settings(roberta_dir=tmp_path_factory.mktemp("no_roberta"))
+    settings = Settings(roberta_dir=tmp_path_factory.mktemp("no_roberta"), onnx_dir=tmp_path_factory.mktemp("no_onnx"))
     with TestClient(create_app(settings)) as c:
         yield c
 
@@ -45,6 +45,26 @@ def test_predict_rejects_bad_input(client, payload: dict, message: str) -> None:
     response = client.post("/predict", json=payload)
     assert response.status_code == 422
     assert message in response.json()["detail"]
+
+
+def test_explain_returns_prediction_and_segments(client) -> None:
+    body = client.post("/explain", json={"text": f"  {STRESS_TEXT}  "}).json()
+    predicted = client.post("/predict", json={"text": STRESS_TEXT}).json()
+    assert body["label"] == predicted["label"]
+    assert body["stress_probability"] == pytest.approx(predicted["stress_probability"])
+    assert body["text"] == STRESS_TEXT and body["unit"] == "word"
+    assert all(body["text"][s["start"]:s["end"]] == s["text"] for s in body["segments"])
+    assert max(abs(s["score"]) for s in body["segments"]) == pytest.approx(1.0)
+
+
+def test_explain_rejects_empty_text(client) -> None:
+    assert client.post("/explain", json={"text": " "}).status_code == 422
+
+
+def test_metrics_include_analysis_tables(client) -> None:
+    body = client.get("/metrics").json()
+    for key in ("confusion", "significance", "calibration", "calibration_summary"):
+        assert body[key], key
 
 
 def test_batch_predict(client) -> None:
@@ -91,7 +111,7 @@ def test_serves_built_frontend(tmp_path) -> None:
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text("<html>app</html>")
     (dist / "assets" / "app.js").write_text("console.log(1)")
-    settings = Settings(roberta_dir=tmp_path / "none", frontend_dist=dist)
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", frontend_dist=dist)
     with TestClient(create_app(settings)) as c:
         assert c.get("/").text == "<html>app</html>"
         assert c.get("/results").text == "<html>app</html>"        # client-side route
@@ -103,3 +123,60 @@ def test_serves_built_frontend(tmp_path) -> None:
 def test_cors_allows_frontend(client) -> None:
     response = client.get("/health", headers={"Origin": "http://localhost:5173"})
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+@pytest.fixture()
+def label_client(tmp_path):
+    """API client whose label-check file is a temporary copy (the real file is never touched)."""
+    from ml.annotation import LABEL_CHECK_FILE
+
+    copy = tmp_path / "label_check.csv"
+    copy.write_bytes(LABEL_CHECK_FILE.read_bytes())
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", label_check_file=copy)
+    with TestClient(create_app(settings)) as c:
+        yield c, copy
+
+
+def test_label_sheet_hides_dataset_label(label_client) -> None:
+    client, _ = label_client
+    body = client.get("/label-check/dhamodhar").json()
+    assert body["n_total"] == 50 and len(body["items"]) == 50
+    assert set(body["items"][0]) == {"id", "text", "label"}
+
+
+def test_saving_a_label_updates_file_and_agreement(label_client) -> None:
+    client, path = label_client
+    post = client.get("/label-check/uday").json()["items"][0]
+    before = pd.read_csv(path, dtype={"id": str})["uday"].notna().sum()
+    body = client.put(f"/label-check/uday/{post['id']}", json={"label": 1}).json()
+    saved = pd.read_csv(path, dtype={"id": str}).set_index("id")
+    assert saved.at[post["id"], "uday"] == 1
+    assert body["n_done"] == before + 1
+    client.put(f"/label-check/uday/{post['id']}", json={"label": None})
+    assert pd.read_csv(path, dtype={"id": str}).set_index("id").isna().at[post["id"], "uday"]
+
+
+@pytest.mark.parametrize(("url", "payload", "status"), [
+    ("/label-check/nobody/1", {"label": 1}, 404),
+    ("/label-check/uday/not-a-post", {"label": 1}, 404),
+    ("/label-check/uday/1948", {"label": 7}, 422),
+])
+def test_label_rejects_bad_requests(label_client, url: str, payload: dict, status: int) -> None:
+    client, _ = label_client
+    assert client.put(url, json=payload).status_code == status
+
+
+def test_labeling_can_be_switched_off(tmp_path) -> None:
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", labeling_enabled=False)
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/label-check/uday").status_code == 403
+
+
+def test_errors_include_manual_groups(tmp_path) -> None:
+    errors = pd.read_csv(get_settings().results_dir / "errors.csv", dtype={"id": str})
+    groups = tmp_path / "groups.csv"
+    pd.DataFrame({"id": [errors["id"][0]], "group": ["Test group"], "reviewed_by": ["uday"]}).to_csv(groups, index=False)
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", error_groups_file=groups)
+    with TestClient(create_app(settings)) as c:
+        first = c.get("/metrics").json()["errors"][0]
+    assert (first["group"], first["reviewed_by"]) == ("Test group", "uday")

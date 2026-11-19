@@ -5,12 +5,12 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-from ml.evaluation import METRICS  # noqa: E402
-from ml.reporting import MODEL_LABELS  # noqa: E402
+from ml.evaluation import METRICS
+from ml.reporting import MODEL_LABELS
 
 # Categorical slots 1-3 of a validated colorblind-safe palette, fixed per entity.
 MODEL_COLORS: dict[str, str] = {"majority": "#2a78d6", "tfidf": "#eb6834", "roberta": "#1baf7a"}
@@ -120,6 +120,44 @@ def plot_latency(server_ms: np.ndarray, client_ms: np.ndarray, model: str, path:
     for side in ("top", "right", "left"):
         ax.spines[side].set_visible(False)
     ax.tick_params(colors=MUTED, length=0)
+    _save(fig, path)
+
+
+def plot_confusion(conf: pd.DataFrame, path: Path) -> None:
+    """One 2x2 confusion matrix per model (rows = true label, columns = predicted)."""
+    fig, axes = plt.subplots(1, len(conf), figsize=(3.4 * len(conf), 3.4), dpi=150, squeeze=False)
+    labels = ["no stress", "stress"]
+    for ax, (_, row) in zip(axes[0], conf.iterrows(), strict=True):
+        matrix = np.array([[row["tn"], row["fp"]], [row["fn"], row["tp"]]])
+        ax.imshow(matrix, cmap="Greens", vmin=0, vmax=matrix.sum())
+        for (i, j), value in np.ndenumerate(matrix):
+            share = value / matrix[i].sum() if matrix[i].sum() else 0
+            ax.text(j, i, f"{value}\n{share:.0%} of row", ha="center", va="center", fontsize=9,
+                    color="white" if value > matrix.sum() * 0.35 else TEXT)
+        ax.set_xticks([0, 1], labels)
+        ax.set_yticks([0, 1], labels)
+        ax.set_xlabel("Predicted", color=MUTED)
+        ax.set_ylabel("True", color=MUTED)
+        ax.set_title(MODEL_LABELS.get(row["model"], row["model"]), loc="left", fontsize=11, color=TEXT)
+        ax.tick_params(colors=MUTED, length=0)
+        for side in ax.spines.values():
+            side.set_visible(False)
+    _save(fig, path)
+
+
+def plot_calibration(bins: pd.DataFrame, summary: pd.DataFrame, path: Path) -> None:
+    """Reliability diagram: predicted P(stress) vs observed stress rate."""
+    fig, ax = plt.subplots(figsize=(5.5, 5), dpi=150)
+    ax.plot([0, 1], [0, 1], linestyle="--", color=MUTED, linewidth=1, label="Perfect calibration")
+    for model, part in bins.groupby("model", sort=False):
+        ece = summary.loc[summary["model"] == model, "ece"].iloc[0]
+        ax.plot(part["mean_predicted"], part["observed_rate"], marker="o", markersize=4,
+                color=MODEL_COLORS.get(model, TEXT), label=f"{MODEL_LABELS.get(model, model)} (ECE {ece:.3f})")
+    ax.set_xlim(0, 1)
+    _style(ax, "Calibration on the 715 test posts", "Observed share of stress posts")
+    ax.set_xlabel("Mean predicted probability of stress", color=MUTED)
+    ax.xaxis.grid(True, color=GRID, linewidth=0.8)
+    ax.legend(frameon=False, loc="upper left", fontsize=8)
     _save(fig, path)
 
 

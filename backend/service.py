@@ -8,11 +8,17 @@ from typing import Any
 
 import pandas as pd
 
+from ml.annotation import agreement_report
 from ml.predictors import Prediction, Predictor, RobertaPredictor
 
 METRICS_FILE = "metrics.csv"
 API_CHECK_FILE = "api_check.csv"
 LATENCY_FILE = "latency.csv"
+TEMPERATURE_FILE = "temperature.csv"
+# Tables written by scripts.analyze and scripts.label_agreement, served as lists of rows.
+TABLE_FILES: tuple[str, ...] = (
+    "confusion", "significance", "calibration", "calibration_summary", "label_agreement",
+)
 ERRORS_FILE = "errors.csv"
 
 
@@ -40,13 +46,50 @@ def _first(path: Path) -> dict[str, Any] | None:
     return records[0] if records else None
 
 
-def load_metrics(results_dir: Path) -> dict[str, Any]:
-    """Collect all saved evaluation results for the frontend."""
+def _errors_with_groups(results_dir: Path, groups_file: Path | None) -> list[dict[str, Any]] | None:
+    """Misclassified posts, with the manual error group (and who reviewed it) joined by post id."""
+    errors = _records(results_dir / ERRORS_FILE)
+    if errors is None or groups_file is None or not groups_file.exists():
+        return errors
+    groups = pd.read_csv(groups_file, dtype=str).fillna("").set_index("id")
+    for row in errors:
+        key = str(row["id"])
+        if key in groups.index:
+            row["group"] = groups.at[key, "group"] or None
+            row["reviewed_by"] = groups.at[key, "reviewed_by"] or None
+    return errors
+
+
+def _live_agreement(label_check_file: Path | None) -> list[dict[str, Any]] | None:
+    """Agreement table computed from the label-check file, or None if nobody has labelled yet."""
+    if label_check_file is None or not label_check_file.exists():
+        return None
+    report = agreement_report(pd.read_csv(label_check_file, dtype={"id": str}))
+    if report["n"].eq(0).all():
+        return None
+    return [
+        {k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in row.items()}
+        for row in report.to_dict(orient="records")
+    ]
+
+
+def load_metrics(
+    results_dir: Path, groups_file: Path | None = None, label_check_file: Path | None = None
+) -> dict[str, Any]:
+    """Collect all saved evaluation results for the frontend (missing files become None).
+
+    The label-check agreement is computed live from ``label_check_file`` when given,
+    so the Results page updates as the team labels.
+    """
+    live = _live_agreement(label_check_file)
     return {
         "metrics": _records(results_dir / METRICS_FILE) or [],
         "api_check": _first(results_dir / API_CHECK_FILE),
         "latency": _first(results_dir / LATENCY_FILE),
-        "errors": _records(results_dir / ERRORS_FILE),
+        "errors": _errors_with_groups(results_dir, groups_file),
+        **{name: _records(results_dir / f"{name}.csv") for name in TABLE_FILES},
+        "temperature": _first(results_dir / TEMPERATURE_FILE),
+        **({"label_agreement": live} if live else {}),
     }
 
 
@@ -63,4 +106,5 @@ def model_info(predictor: Predictor, results_dir: Path) -> dict[str, Any]:
         "test_f1": test_f1,
         "test_f1_ci": test_f1_ci,
         "trained_at": predictor.metadata.get("trained_at"),
+        "temperature": getattr(predictor, "temperature", None),
     }

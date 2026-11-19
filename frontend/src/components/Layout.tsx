@@ -14,7 +14,10 @@ function Logo() {
   return (
     <NavLink to="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
       <img src="/favicon.svg" alt="" className="h-8 w-8" />
-      <span className="hidden text-lg sm:inline">TextLab</span>
+      <span className="hidden leading-tight sm:block">
+        <span className="block text-base">TextLab</span>
+        <span className="block text-[11px] font-normal text-ink-3">Stress detection in text</span>
+      </span>
     </NavLink>
   );
 }
@@ -25,7 +28,7 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-bg/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
           <Logo />
           <nav className="flex items-center gap-1">
             {NAV.map(({ to, label }) => (
@@ -54,12 +57,12 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
         <Outlet />
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-6 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between">
           <CrisisNote compact />
           <p>TextLab · Saint Louis University · MS in AI</p>
         </div>

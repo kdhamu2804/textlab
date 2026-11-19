@@ -14,6 +14,23 @@ export interface PredictResponse {
   latency_ms: number;
 }
 
+export interface Segment {
+  text: string;
+  start: number;
+  end: number;
+  /** -1..1: positive pushes toward stress, negative toward no stress. */
+  score: number;
+  /** Drop in P(stress) when the segment is removed (sentence occlusion only). */
+  delta: number | null;
+}
+
+export interface ExplainResponse extends PredictResponse {
+  text: string;
+  unit: "word" | "sentence";
+  method: string;
+  segments: Segment[];
+}
+
 export interface ModelInfo {
   model_name: string;
   display_name: string;
@@ -21,6 +38,7 @@ export interface ModelInfo {
   test_f1: number | null;
   test_f1_ci: [number, number] | null;
   trained_at: string | null;
+  temperature: number | null;
   max_text_chars: number;
 }
 
@@ -69,6 +87,71 @@ export interface ErrorRow {
   confidence: number;
   error_type: string;
   group: string | null;
+  reviewed_by?: string | null;
+}
+
+export interface ConfusionRow {
+  model: string;
+  tn: number;
+  fp: number;
+  fn: number;
+  tp: number;
+}
+
+export interface SignificanceRow {
+  model_a: string;
+  model_b: string;
+  metric: string;
+  difference: number;
+  difference_low: number;
+  difference_high: number;
+  p_value: number;
+  n_resamples: number;
+  only_a_correct: number;
+  only_b_correct: number;
+  mcnemar_p: number;
+}
+
+export interface CalibrationBin {
+  model: string;
+  bin_low: number;
+  bin_high: number;
+  n: number;
+  mean_predicted: number;
+  observed_rate: number;
+}
+
+export interface CalibrationSummary {
+  model: string;
+  ece: number;
+  brier: number;
+  n: number;
+}
+
+export interface Temperature {
+  temperature: number;
+  n_val: number;
+  val_nll_before: number;
+  val_nll_after: number;
+  test_ece_before: number;
+  test_ece_after: number;
+}
+
+export interface AgreementRow {
+  [key: string]: string | number | null;
+}
+
+export interface LabelItem {
+  id: string;
+  text: string;
+  label: 0 | 1 | null;
+}
+
+export interface LabelSheet {
+  annotator: string;
+  items: LabelItem[];
+  n_done: number;
+  n_total: number;
 }
 
 export interface MetricsResponse {
@@ -76,6 +159,12 @@ export interface MetricsResponse {
   api_check: ApiCheck | null;
   latency: Latency | null;
   errors: ErrorRow[] | null;
+  confusion: ConfusionRow[] | null;
+  significance: SignificanceRow[] | null;
+  calibration: CalibrationBin[] | null;
+  calibration_summary: CalibrationSummary[] | null;
+  temperature: Temperature | null;
+  label_agreement: AgreementRow[] | null;
 }
 
 /** Fetch JSON and turn API errors into readable messages. */
@@ -99,6 +188,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   predict: (text: string) =>
     request<PredictResponse>("/predict", { method: "POST", body: JSON.stringify({ text }) }),
+  explain: (text: string) =>
+    request<ExplainResponse>("/explain", { method: "POST", body: JSON.stringify({ text }) }),
+  labelSheet: (annotator: string) => request<LabelSheet>(`/label-check/${encodeURIComponent(annotator)}`),
+  saveLabel: (annotator: string, postId: string, label: 0 | 1 | null) =>
+    request<LabelSheet>(`/label-check/${encodeURIComponent(annotator)}/${encodeURIComponent(postId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ label }),
+    }),
   modelInfo: () => request<ModelInfo>("/model-info"),
   metrics: () => request<MetricsResponse>("/metrics"),
 };

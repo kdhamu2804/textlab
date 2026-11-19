@@ -1,0 +1,2 @@
+size_mb_full,size_mb_onnx_int8,n_posts,label_match,max_prob_diff,f1_full,f1_onnx_int8,ms_per_post_onnx_batch16
+498.612824,125.850489,715,689,0.3084577638787023,0.8337595907928389,0.8342105263157895,79.69472349647407

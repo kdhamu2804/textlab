@@ -13,6 +13,8 @@ RESULTS_DIR: Path = PROJECT_ROOT / "results"
 PREDICTIONS_DIR: Path = RESULTS_DIR / "predictions"
 TFIDF_DIR: Path = MODELS_DIR / "tfidf"
 ROBERTA_DIR: Path = MODELS_DIR / "roberta"
+# Compact 8-bit ONNX copy of RoBERTa for low-memory hosting (scripts.export_onnx).
+ROBERTA_ONNX_DIR: Path = MODELS_DIR / "roberta_onnx"
 
 HF_DATASET: str = "andreagasparini/dreaddit"
 SPLITS: tuple[str, ...] = ("train", "test")

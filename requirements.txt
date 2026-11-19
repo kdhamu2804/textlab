@@ -7,9 +7,15 @@ datasets>=2.19
 scikit-learn>=1.5
 joblib>=1.4
 
-# Transformer inference (training runs on Google Colab)
+# Transformer training and inference (for a GPU, install a CUDA build of torch first, see README)
 torch>=2.3
 transformers>=4.44
+accelerate>=0.30
+
+# Compact 8-bit ONNX model for low-memory hosting (scripts.export_onnx)
+onnx>=1.16
+onnxruntime>=1.18
+tokenizers>=0.19
 
 # Charts
 matplotlib>=3.8

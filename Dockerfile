@@ -17,7 +17,7 @@ ENV HOME=/home/user PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY requirements.txt .
-# CPU-only PyTorch keeps the image small; it is only needed once RoBERTa is added.
+# CPU-only PyTorch keeps the image small. The server itself serves the ONNX model and never imports it.
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir -r requirements.txt
 
@@ -30,6 +30,17 @@ USER user
 RUN if [ ! -f models/tfidf/model.joblib ]; then \
       python -m scripts.prepare_data && python -m scripts.train_baselines; \
     fi
+
+# The fine-tuned RoBERTa as an 8-bit ONNX model (126 MB, made by scripts.export_onnx),
+# published as a GitHub release file. It fits in 512 MB of RAM without PyTorch.
+# Build with --build-arg ONNX_MODEL_URL= (empty) to serve TF-IDF instead.
+ARG ONNX_MODEL_URL=https://github.com/kdhamu2804/textlab/releases/download/model-v1/roberta_onnx.zip
+RUN if [ -n "$ONNX_MODEL_URL" ]; then \
+      python -c "import io, sys, urllib.request, zipfile; zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(sys.argv[1]).read())).extractall('models/roberta_onnx')" "$ONNX_MODEL_URL"; \
+    fi
+
+# The public site is read-only: the labelling page is for local use by the team.
+ENV TEXTLAB_LABELING_ENABLED=false
 
 # Hosts such as Render set $PORT; default to 7860 otherwise.
 EXPOSE 7860

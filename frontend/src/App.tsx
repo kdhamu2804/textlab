@@ -4,6 +4,7 @@ import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import About from "./pages/About";
 import Home from "./pages/Home";
+import Label from "./pages/Label";
 import NotFound from "./pages/NotFound";
 
 // The charts library is large, so the Results page is loaded only when opened.
@@ -23,6 +24,7 @@ export default function App() {
           }
         />
         <Route path="about" element={<About />} />
+        <Route path="label" element={<Label />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

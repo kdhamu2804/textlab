@@ -5,9 +5,9 @@ import pandas as pd
 import pytest
 
 from ml.baselines import build_tfidf, fit_majority
-from ml.config import TFIDF_DIR, TOPICS
+from ml.config import RESULTS_DIR, ROBERTA_ONNX_DIR, TFIDF_DIR, TOPICS
 from ml.data import load_split
-from ml.predictors import TfidfPredictor, load_predictor, to_prediction
+from ml.predictors import OnnxPredictor, TfidfPredictor, load_predictor, to_prediction
 from ml.reporting import load_all_predictions
 from ml.splits import NEW_TOPIC, STANDARD, experiments, validation_split
 
@@ -73,4 +73,15 @@ def test_saved_tfidf_matches_saved_predictions(test) -> None:
 
 @needs_tfidf
 def test_load_predictor_falls_back_to_tfidf(tmp_path) -> None:
-    assert load_predictor(roberta_dir=tmp_path).name == "tfidf"
+    assert load_predictor(roberta_dir=tmp_path, onnx_dir=tmp_path).name == "tfidf"
+
+
+@pytest.mark.skipif(not (ROBERTA_ONNX_DIR / "model.onnx").exists(), reason="run scripts.export_onnx first")
+def test_onnx_model_is_used_without_full_roberta_and_matches_saved_check(tmp_path, test) -> None:
+    predictor = load_predictor(roberta_dir=tmp_path)
+    assert isinstance(predictor, OnnxPredictor) and predictor.name == "roberta"
+    probs = predictor.stress_probabilities(test["text"].head(8))
+    assert probs.shape == (8,) and ((probs >= 0) & (probs <= 1)).all()
+    check = pd.read_csv(RESULTS_DIR / "onnx_check.csv").iloc[0]
+    assert check["label_match"] / check["n_posts"] > 0.95
+    assert abs(check["f1_onnx_int8"] - check["f1_full"]) < 0.01

@@ -21,6 +21,20 @@ export const pct = (x: number, digits = 0): string => `${(x * 100).toFixed(digit
 
 export const score = (x: number): string => x.toFixed(3);
 
+/** Signed difference in points, e.g. 0.081 -> "+8.1". */
+export const points = (x: number, digits = 1): string => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(digits)}`;
+
+/** p-value for display; bootstrap p-values have a floor of 1/n_resamples. */
+export const pValue = (p: number, floor = 0.001): string => (p < floor ? `p < ${floor}` : `p = ${p.toFixed(3)}`);
+
+/** Find the standard-split, full-test-set metrics row of a model. */
+export function headline<T extends { model: string; setting: string; test_set: string }>(
+  rows: T[],
+  model: string,
+): T | undefined {
+  return rows.find((r) => r.model === model && r.setting === "standard" && r.test_set === "all");
+}
+
 /**
  * Chart colors: slots 1-3 of a validated colorblind-safe categorical palette,
  * with separate steps for light and dark surfaces. Fixed per entity.

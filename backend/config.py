@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from ml.config import PROJECT_ROOT, RESULTS_DIR, ROBERTA_DIR, TFIDF_DIR
+from ml.config import DATA_DIR, PROJECT_ROOT, RESULTS_DIR, ROBERTA_DIR, ROBERTA_ONNX_DIR, TFIDF_DIR
 
 
 class Settings(BaseSettings):
@@ -16,8 +16,15 @@ class Settings(BaseSettings):
 
     app_name: str = "TextLab Stress Detection API"
     roberta_dir: Path = ROBERTA_DIR
+    # 8-bit ONNX RoBERTa, used when the full model (or PyTorch) is not available.
+    onnx_dir: Path = ROBERTA_ONNX_DIR
     tfidf_dir: Path = TFIDF_DIR
     results_dir: Path = RESULTS_DIR
+    # Manual annotation files (edited by the team, also through the labelling page).
+    error_groups_file: Path = DATA_DIR / "error_groups.csv"
+    label_check_file: Path = DATA_DIR / "label_check.csv"
+    # The labelling page writes to label_check_file; switch it off on public deployments.
+    labeling_enabled: bool = True
     # Built website (``npm run build``); served at / when it exists, e.g. on Hugging Face Spaces.
     frontend_dist: Path = PROJECT_ROOT / "frontend" / "dist"
     max_text_chars: int = 5000
