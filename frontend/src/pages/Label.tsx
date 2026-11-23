@@ -1,8 +1,8 @@
 import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-import { api, type LabelSheet } from "../api";
+import { api, type LabelItem, type LabelSheet } from "../api";
 
 const ANNOTATORS = [
   { key: "dhamodhar", name: "Dhamodhar" },
@@ -11,6 +11,7 @@ const ANNOTATORS = [
 ];
 
 const RULE = "Does the writer sound stressed, worried or upset?";
+const PAGE_SIZE = 10;
 
 function ChooseAnnotator({ onPick }: { onPick: (key: string) => void }) {
   return (
@@ -51,58 +52,130 @@ function Progress({ done, total }: { done: number; total: number }) {
   );
 }
 
+/** One post with its own Yes / No buttons. */
+function PostCard({
+  item,
+  number,
+  saving,
+  onSave,
+}: {
+  item: LabelItem;
+  number: number;
+  saving: boolean;
+  onSave: (label: 0 | 1) => void;
+}) {
+  return (
+    <article
+      className={`card space-y-4 p-5 transition-colors ${item.label === null ? "" : "border-accent/30 bg-accent-soft/30"}`}
+    >
+      <div className="flex items-center justify-between text-sm text-ink-3">
+        <span className="font-medium">Post {number}</span>
+        {saving ? (
+          <Loader2 size={16} className="animate-spin" aria-label="Saving" />
+        ) : item.label === null ? (
+          <span>not answered</span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-accent"><Check size={14} aria-hidden /> saved</span>
+        )}
+      </div>
+      <p className="whitespace-pre-wrap text-[15px] leading-7">{item.text}</p>
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <span className="mr-auto text-sm font-medium text-ink-2">{RULE}</span>
+        <button
+          type="button"
+          onClick={() => onSave(1)}
+          disabled={saving}
+          aria-pressed={item.label === 1}
+          className={`inline-flex min-w-24 items-center justify-center gap-1.5 rounded-xl border-2 px-4 py-2 font-semibold transition-colors disabled:opacity-50 ${
+            item.label === 1 ? "border-stress bg-stress text-white" : "border-stress/40 text-stress hover:bg-stress-soft"
+          }`}
+        >
+          <Check size={16} aria-hidden /> Yes
+        </button>
+        <button
+          type="button"
+          onClick={() => onSave(0)}
+          disabled={saving}
+          aria-pressed={item.label === 0}
+          className={`inline-flex min-w-24 items-center justify-center gap-1.5 rounded-xl border-2 px-4 py-2 font-semibold transition-colors disabled:opacity-50 ${
+            item.label === 0 ? "border-calm bg-calm text-white" : "border-calm/40 text-calm hover:bg-calm-soft"
+          }`}
+        >
+          <X size={16} aria-hidden /> No
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <button type="button" onClick={() => onPage(page - 1)} disabled={page === 0}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-ink-2 hover:bg-surface-2 disabled:opacity-40">
+        <ArrowLeft size={16} aria-hidden /> Previous page
+      </button>
+      <div className="flex gap-1" role="group" aria-label="Pages">
+        {Array.from({ length: pages }, (_, p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPage(p)}
+            aria-current={p === page ? "page" : undefined}
+            className={`h-9 w-9 rounded-lg text-sm font-medium ${p === page ? "bg-accent text-accent-ink" : "text-ink-2 hover:bg-surface-2"}`}
+          >
+            {p + 1}
+          </button>
+        ))}
+      </div>
+      <button type="button" onClick={() => onPage(page + 1)} disabled={page === pages - 1}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-ink-2 hover:bg-surface-2 disabled:opacity-40">
+        Next page <ArrowRight size={16} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
 function Labeller({ annotator }: { annotator: string }) {
   const [sheet, setSheet] = useState<LabelSheet | null>(null);
-  const [index, setIndex] = useState(0);
+  const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
     api.labelSheet(annotator)
       .then((s) => {
         setSheet(s);
         const firstOpen = s.items.findIndex((i) => i.label === null);
-        setIndex(firstOpen === -1 ? 0 : firstOpen);
+        setPage(firstOpen === -1 ? 0 : Math.floor(firstOpen / PAGE_SIZE));
       })
       .catch((e: Error) => setError(e.message));
   }, [annotator]);
 
-  const save = useCallback(
-    async (label: 0 | 1) => {
-      if (!sheet || saving) return;
-      setSaving(true);
-      setError(null);
-      try {
-        const next = await api.saveLabel(annotator, sheet.items[index].id, label);
-        setSheet(next);
-        const after = next.items.findIndex((item, i) => i > index && item.label === null);
-        const anyOpen = next.items.findIndex((item) => item.label === null);
-        setIndex(after !== -1 ? after : anyOpen !== -1 ? anyOpen : index);
-      } catch (e) {
-        setError((e as Error).message);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [annotator, index, saving, sheet],
-  );
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (!sheet || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-      const key = e.key.toLowerCase();
-      if (key === "y" || key === "1") save(1);
-      else if (key === "n" || key === "0") save(0);
-      else if (key === "arrowright") setIndex((i) => Math.min(i + 1, sheet.n_total - 1));
-      else if (key === "arrowleft") setIndex((i) => Math.max(i - 1, 0));
+  async function save(id: string, label: 0 | 1) {
+    if (savingId) return;
+    setSavingId(id);
+    setError(null);
+    try {
+      setSheet(await api.saveLabel(annotator, id, label));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSavingId(null);
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [save, sheet]);
+  }
+
+  function goTo(p: number) {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   if (error && !sheet) return <p className="text-stress">{error}</p>;
   if (!sheet) return <p className="text-ink-3">Loading posts…</p>;
-  const item = sheet.items[index];
+  const pages = Math.ceil(sheet.n_total / PAGE_SIZE);
+  const start = page * PAGE_SIZE;
+  const items = sheet.items.slice(start, start + PAGE_SIZE);
+  const pageDone = items.filter((i) => i.label !== null).length;
   const finished = sheet.n_done === sheet.n_total;
 
   return (
@@ -111,60 +184,24 @@ function Labeller({ annotator }: { annotator: string }) {
       {finished && (
         <p className="rounded-xl bg-calm-soft px-4 py-3 text-sm text-ink-2">
           <strong className="text-calm">All 50 labelled. Thank you!</strong> Your labels are saved in{" "}
-          <code>data/label_check.csv</code>; agreement appears on the <Link to="/results#labels" className="font-medium text-accent underline">Results page</Link>.
-          You can still go back and change any answer.
+          <code>data/label_check.csv</code>; agreement appears on the{" "}
+          <Link to="/results#labels" className="font-medium text-accent underline">Results page</Link>. You can still
+          change any answer.
         </p>
       )}
-      <article className="card space-y-5 p-6 sm:p-8">
-        <div className="flex items-center justify-between text-sm text-ink-3">
-          <span>Post {index + 1} of {sheet.n_total}</span>
-          {item.label !== null && (
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${item.label ? "bg-stress-soft text-stress" : "bg-calm-soft text-calm"}`}>
-              your answer: {item.label ? "yes" : "no"}
-            </span>
-          )}
-        </div>
-        <p className="whitespace-pre-wrap text-[15px] leading-7">{item.text}</p>
-        <div className="border-t border-border pt-5">
-          <p className="mb-3 text-center font-medium">{RULE}</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => save(1)}
-              disabled={saving}
-              className={`inline-flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-semibold transition-colors disabled:opacity-50 ${
-                item.label === 1 ? "border-stress bg-stress text-white" : "border-stress/40 text-stress hover:bg-stress-soft"
-              }`}
-            >
-              <Check size={18} aria-hidden /> Yes <kbd className="text-xs font-normal opacity-70">Y</kbd>
-            </button>
-            <button
-              type="button"
-              onClick={() => save(0)}
-              disabled={saving}
-              className={`inline-flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-semibold transition-colors disabled:opacity-50 ${
-                item.label === 0 ? "border-calm bg-calm text-white" : "border-calm/40 text-calm hover:bg-calm-soft"
-              }`}
-            >
-              <X size={18} aria-hidden /> No <kbd className="text-xs font-normal opacity-70">N</kbd>
-            </button>
-          </div>
-        </div>
-      </article>
+      <Pager page={page} pages={pages} onPage={goTo} />
+      <p className="text-sm text-ink-3">
+        Page {page + 1} of {pages} · posts {start + 1}–{start + items.length} · {pageDone} of {items.length} answered on this page.
+        Answers save as soon as you click.
+      </p>
       {error && <p role="alert" className="text-sm text-stress">{error}</p>}
-      <div className="flex items-center justify-between text-sm">
-        <button type="button" onClick={() => setIndex((i) => Math.max(i - 1, 0))} disabled={index === 0}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-ink-2 hover:bg-surface-2 disabled:opacity-40">
-          <ArrowLeft size={16} aria-hidden /> Previous
-        </button>
-        {saving && <Loader2 size={16} className="animate-spin text-ink-3" aria-label="Saving" />}
-        <button type="button" onClick={() => setIndex((i) => Math.min(i + 1, sheet.n_total - 1))}
-                disabled={index === sheet.n_total - 1}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-ink-2 hover:bg-surface-2 disabled:opacity-40">
-          Next <ArrowRight size={16} aria-hidden />
-        </button>
+      <div className="space-y-4">
+        {items.map((item, i) => (
+          <PostCard key={item.id} item={item} number={start + i + 1} saving={savingId === item.id}
+                    onSave={(label) => save(item.id, label)} />
+        ))}
       </div>
-      <p className="text-center text-xs text-ink-3">Keyboard: Y = yes, N = no, ← → to move. Answers save automatically.</p>
+      <Pager page={page} pages={pages} onPage={goTo} />
     </div>
   );
 }
