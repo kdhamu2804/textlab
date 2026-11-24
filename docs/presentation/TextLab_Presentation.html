@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TextLab: Finding Stress in Reddit Posts</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap">
+<style>
+:root {
+  --ink: #1D2320;
+  --ink2: #4A524D;
+  --paper: #F7F6F2;
+  --paper2: #E6EEEA;
+  --card: #FDFCF9;
+  --line: #D6D9D2;
+  --accent: #2F6F62;
+  --accent-soft: #D7E8E2;
+  --warm: #B5562F;
+  --warm-soft: #F6E3D9;
+  --warm-ink: #8E3F1F;
+  --gold: #E2B24F;
+  --deep: #15302B;
+  --on-deep: #F3F1EA;
+  --on-deep2: #BFD8D2;
+}
+
+body { font-family: 'Inter', Arial, sans-serif; color: var(--ink); }
+
+section {
+  padding: 128px;
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  box-sizing: border-box;
+}
+section.alt { background: var(--paper2); }
+section.dark { background: var(--deep); color: var(--on-deep); }
+section.center { justify-content: center; }
+
+h1, h2, h3 { font-family: 'Space Grotesk', Arial, sans-serif; margin: 0; }
+h1 { font-size: 112px; font-weight: 700; line-height: 1.05; letter-spacing: -2px; color: var(--on-deep); }
+h2 { font-size: 64px; font-weight: 600; line-height: 1.1; color: var(--ink); }
+section.dark h2 { color: var(--on-deep); }
+h3 { font-size: 40px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+p { margin: 0; font-size: 30px; line-height: 1.4; }
+
+.head { display: flex; flex-direction: column; gap: 16px; }
+.eyebrow { font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); }
+section.dark .eyebrow { color: var(--gold); }
+.lead { font-size: 34px; color: var(--ink2); line-height: 1.4; }
+section.dark .lead { color: var(--on-deep2); }
+.small { font-size: 26px; color: var(--ink2); line-height: 1.4; }
+section.dark .small { color: var(--on-deep2); }
+
+.row { display: flex; gap: 32px; }
+.grow { flex: 1; }
+.fill { flex: 1; }
+.card {
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 24px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+.row.fill .card { justify-content: center; }
+.card-text { font-size: 30px; color: var(--ink2); line-height: 1.4; }
+.card-title { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 40px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+.tag { font-size: 24px; font-weight: 600; padding: 6px 18px; border-radius: 40px; background: var(--accent-soft); color: var(--accent); align-self: flex-start; }
+.tag.warm { background: var(--warm-soft); color: var(--warm-ink); }
+.num { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 72px; font-weight: 700; line-height: 1; color: var(--accent); }
+.icon { color: var(--accent); width: 48px; height: 48px; }
+
+/* Motion: the plain rules above are the finished look. */
+@keyframes rise { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slidein { from { opacity: 0; transform: translateX(-60px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+.rise { animation: rise 650ms cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 140ms); }
+.fade { animation: fade 700ms ease-out both; animation-delay: calc(var(--i, 0) * 140ms); }
+.slidein { animation: slidein 700ms cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 160ms); }
+.pop { animation: pop 520ms cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 140ms); }
+
+/* Cover */
+.cover-sub { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 48px; font-weight: 500; line-height: 1.2; color: var(--gold); }
+.cover-meta { display: flex; gap: 32px; align-items: baseline; }
+.cover-key { font-size: 24px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--on-deep2); width: 180px; }
+.cover-team { display: flex; gap: 48px; }
+.cover-name { font-size: 30px; font-weight: 600; color: var(--on-deep); }
+.cover-role { font-size: 24px; color: var(--on-deep2); }
+.person { display: flex; flex-direction: column; gap: 4px; }
+
+/* Statement */
+.quote { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 72px; font-weight: 600; line-height: 1.15; color: var(--on-deep); }
+.pill { font-size: 30px; font-weight: 600; padding: 14px 28px; border-radius: 40px; background: var(--gold); color: var(--deep); }
+
+/* Workflow */
+.steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 32px; }
+.step {
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: 24px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.step.final { background: var(--accent); border-color: var(--accent); }
+.step-n { font-size: 24px; font-weight: 600; color: var(--accent); }
+.step-title { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 34px; font-weight: 600; color: var(--ink); }
+.step-text { font-size: 26px; line-height: 1.35; color: var(--ink2); }
+.step.final .step-n { color: var(--on-deep2); }
+.step.final .step-title { color: var(--on-deep); }
+.step.final .step-text { color: var(--on-deep2); }
+.step.final .icon { color: var(--on-deep); }
+.phases { display: grid; grid-template-columns: repeat(6, 1fr); gap: 32px; }
+.phase { border-top: 6px solid var(--accent); padding-top: 12px; font-size: 24px; font-weight: 600; color: var(--accent); }
+.phase.warm { border-top-color: var(--warm); color: var(--warm-ink); }
+.phase.gold { border-top-color: var(--gold); color: #7A5A12; }
+
+/* Data split */
+.split { display: flex; width: 1664px; height: 120px; }
+.seg { display: flex; align-items: center; padding: 0 28px; box-sizing: border-box; }
+.seg-train { width: 63.9%; background: var(--accent); }
+.seg-val { width: 16%; background: var(--gold); }
+.seg-test { width: 20.1%; background: var(--warm); }
+.seg-label { font-size: 30px; font-weight: 700; color: var(--on-deep); }
+.seg-val .seg-label { color: var(--deep); }
+.split-notes { display: flex; width: 1664px; }
+.note { padding: 0 28px 0 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; }
+.note-title { font-size: 28px; font-weight: 700; color: var(--ink); }
+.note-text { font-size: 26px; color: var(--ink2); line-height: 1.35; }
+
+/* Bars */
+.bars { display: flex; flex-direction: column; gap: 28px; }
+.bar-label { font-size: 28px; font-weight: 600; color: var(--ink); }
+.bar-track { background: #E4E6E0; border-radius: 14px; height: 76px; display: flex; }
+.bar { border-radius: 14px; display: flex; align-items: center; justify-content: flex-end; padding: 0 24px; box-sizing: border-box; }
+.bar-value { font-size: 32px; font-weight: 700; }
+.bar.grey { background: #C9CEC9; }
+.bar.gold { background: var(--gold); }
+.bar.teal { background: var(--accent); }
+.bar.grey .bar-value { color: var(--ink); }
+.bar.gold .bar-value { color: var(--deep); }
+.bar.teal .bar-value { color: var(--on-deep); }
+
+.bars.compact { gap: 20px; }
+.bars.compact .bar-track { height: 60px; }
+.mini { background: var(--card); border: 2px solid var(--line); border-radius: 20px; padding: 24px 32px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; }
+.mini-num { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 48px; font-weight: 700; line-height: 1.1; color: var(--accent); }
+.mini-text { font-size: 26px; color: var(--ink2); line-height: 1.35; }
+
+/* Score out of 10 */
+.score-card { padding: 16px 40px; gap: 0; }
+.score-row { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 18px 0; border-top: 2px solid var(--line); }
+.score-row.first { border-top: none; }
+.score-label { width: 560px; }
+.score-name { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 36px; font-weight: 600; color: var(--ink); }
+.score-note { font-size: 24px; color: var(--ink2); }
+.dots { display: flex; gap: 14px; }
+.dot { width: 40px; height: 40px; border-radius: 20px; background: var(--accent); }
+.dot.off { background: var(--paper); border: 4px solid var(--line); box-sizing: border-box; }
+.score-val { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 40px; font-weight: 700; color: var(--ink); width: 260px; text-align: right; }
+.emo { font-size: 30px; font-weight: 600; padding: 10px 26px; border-radius: 40px; background: var(--warm-soft); color: var(--warm-ink); }
+
+/* Stat card on dark */
+.stat { background: var(--deep); border-radius: 24px; padding: 44px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; }
+.stat-num { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 120px; font-weight: 700; line-height: 1; color: var(--gold); }
+.stat-text { font-size: 30px; color: var(--on-deep); line-height: 1.35; }
+.stat-small { font-size: 26px; color: var(--on-deep2); line-height: 1.4; }
+
+/* Example posts */
+.post { font-size: 32px; font-style: italic; color: var(--ink2); line-height: 1.45; }
+.meta { font-size: 26px; color: var(--ink2); }
+.label-stress { font-size: 26px; font-weight: 700; color: var(--warm-ink); }
+.label-calm { font-size: 26px; font-weight: 700; color: var(--accent); }
+.callout { background: var(--accent-soft); border-radius: 20px; padding: 28px 36px; font-size: 32px; color: var(--deep); }
+
+/* Chain (how RoBERTa reads) */
+.chain { display: flex; align-items: center; gap: 20px; }
+.link { background: var(--card); border: 2px solid var(--line); border-radius: 24px; padding: 32px 28px; display: flex; flex-direction: column; gap: 10px; flex: 1; box-sizing: border-box; }
+.link.model { background: var(--accent); border-color: var(--accent); }
+.link.out { background: var(--warm-soft); border-color: #E7C2AE; }
+.link-title { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 38px; font-weight: 600; color: var(--ink); }
+.link-text { font-size: 30px; color: var(--ink2); line-height: 1.35; }
+.link.model .link-title { color: var(--on-deep); }
+.link.model .link-text { color: var(--on-deep2); }
+.arrow { width: 56px; height: 28px; background: #9AA59F; }
+
+/* Test grid */
+.tgrid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 28px; flex: 1; }
+.tgrid .card { justify-content: center; }
+
+/* Lists */
+.plain { font-size: 30px; line-height: 1.45; color: var(--ink); margin: 0; padding-left: 40px; }
+.check-row { display: flex; gap: 20px; align-items: flex-start; }
+.check-text { font-size: 30px; line-height: 1.4; color: var(--ink); }
+.check-sub { font-size: 24px; color: var(--ink2); line-height: 1.4; }
+
+html, body { margin: 0; background: #DCE3DF; }
+.top { max-width: 1280px; margin: 0 auto; padding: 24px 16px 0; font-family: Inter, Arial, sans-serif; }
+.top h1 { font-size: 28px; color: #15302B; letter-spacing: 0; line-height: 1.2; }
+.top p { font-size: 16px; color: #4A524D; margin-top: 6px; }
+.frame { max-width: 1280px; margin: 24px auto 40px; padding: 0 16px; }
+.label { font: 600 14px Inter, Arial, sans-serif; color: #2F6F62; margin-bottom: 8px; }
+.wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px; box-shadow: 0 6px 24px #15302B33; }
+.stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: top left; }
+.stage > section { width: 1920px; height: 1080px; position: relative; overflow: hidden; }
+x-shape, x-icon { display: block; }
+x-shape[kind="ellipse"] { border-radius: 50%; }
+x-shape[kind="arrow-right"] { clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%); }
+x-icon { display: none; }
+.notes { margin-top: 12px; background: #FDFCF9; border-radius: 10px; padding: 14px 18px; font: 15px/1.55 Inter, Arial, sans-serif; color: #1D2320; }
+</style></head>
+<body>
+<div class="top"><h1>TextLab: Finding Stress in Reddit Posts</h1>
+<p>Team TextLab presentation, with speaker notes under each slide. Animations play when the page loads.</p></div>
+<div class="frame"><p class="label">Slide 1 of 8</p><div class="wrap"><div class="stage"><section id="cover" class="dark center" data-transition="fade">
+<x-shape kind="ellipse" class="fade" style="position:absolute; left:1180px; top:0px; width:740px; height:740px; background:#1C3F38; --i:0"></x-shape>
+<x-shape kind="ellipse" class="fade" style="position:absolute; left:1560px; top:700px; width:360px; height:360px; background:#22504A; --i:2"></x-shape>
+<p class="eyebrow rise" style="--i:0">NLP final project · Team TextLab</p>
+<h1 class="rise" style="--i:1; width:1500px">Mental Health Detection<br>from Text</h1>
+<p class="cover-sub rise" style="--i:2; width:1400px">A Web App That Finds Stress in Reddit Posts</p>
+<div class="cover-meta rise" style="--i:3">
+<p class="cover-key">Team</p>
+<p class="cover-name">TextLab</p>
+</div>
+<div class="cover-meta rise" style="--i:4">
+<p class="cover-key">Members</p>
+<div class="cover-team">
+<p class="cover-name">Dhamodhar Konduru</p>
+<p class="cover-name">Kushvanth Thati</p>
+<p class="cover-name">Uday Kiran Thurumella</p>
+</div>
+</div>
+<p class="small rise" style="--i:5">CSCI 4845/5845 Natural Language Processing · Saint Louis University</p>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> Hello everyone. We are team TextLab, and our project is “Mental Health Detection from Text: A Web App That Finds Stress in Reddit Posts”. The members are Dhamodhar Konduru, Kushvanth Thati and Uday Kiran Thurumella. You paste a post into our website, and a trained language model says “stress” or “no stress”, how sure it is, and which sentences made it decide. As an extra, it also lists emotions. Dhamodhar did the data, the label check and the simple models; Kushvanth trained RoBERTa and did the new-topic test and error study; Uday built the web app and checked its speed and answers.</div></div><div class="frame"><p class="label">Slide 2 of 8</p><div class="wrap"><div class="stage"><section id="question" class="dark center" data-transition="fade">
+<p class="eyebrow rise" style="--i:0">The problem</p>
+<p class="lead rise" style="--i:1; width:1500px">Many people write about stress online before they ask anyone for help, and moderators cannot read every post. A tool that flags stressed posts can help humans notice them first.</p>
+<p class="eyebrow rise" style="--i:2">Our research question</p>
+<p class="quote rise" style="--i:3; width:1550px">Can a fine-tuned RoBERTa model find stress in Reddit posts better than a simple word-counting model?</p>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> Why did we choose this? Many people write about their worries online before they talk to anyone, and on a big site like Reddit moderators cannot read every post. A tool that flags posts where the writer sounds stressed can help a human look at them first. It only says how a post sounds; it is not a medical diagnosis. Our research question: can a fine-tuned RoBERTa model find stress better than a simple word-counting model called TF-IDF? We set two goals before starting: beat TF-IDF by at least 3 F1 points, and still work on topics the model never saw. Everything is measured on 715 test posts the models never saw while learning.</div></div><div class="frame"><p class="label">Slide 3 of 8</p><div class="wrap"><div class="stage"><section id="workflow" data-transition="fade">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">The workflow</p>
+<h2 class="rise" style="--i:1">How the whole project works</h2>
+</div>
+<div class="steps">
+<div class="step rise" style="--i:2">
+<p class="step-n">Step 1</p>
+<x-icon name="Database" class="icon"></x-icon>
+<p class="step-title">Data</p>
+<p class="step-text">Collect labelled Reddit posts (Dreaddit)</p>
+</div>
+<div class="step rise" style="--i:3">
+<p class="step-n">Step 2</p>
+<x-icon name="Tool" class="icon"></x-icon>
+<p class="step-title">Prepare</p>
+<p class="step-text">Clean the text, add topics, split into train, check and test</p>
+</div>
+<div class="step rise" style="--i:4">
+<p class="step-n">Step 3</p>
+<x-icon name="GraduationCap" class="icon"></x-icon>
+<p class="step-title">Train</p>
+<p class="step-text">Teach 3 models using the training posts</p>
+</div>
+<div class="step rise" style="--i:5">
+<p class="step-n">Step 4</p>
+<x-icon name="Check" class="icon"></x-icon>
+<p class="step-title">Test</p>
+<p class="step-text">Score each model on 715 unseen posts</p>
+</div>
+<div class="step rise" style="--i:6">
+<p class="step-n">Step 5</p>
+<x-icon name="Chart" class="icon"></x-icon>
+<p class="step-title">Compare</p>
+<p class="step-text">Which is best? Is the win real or luck?</p>
+</div>
+<div class="step final rise" style="--i:7">
+<p class="step-n">Step 6</p>
+<x-icon name="Globe" class="icon"></x-icon>
+<p class="step-title">Web app</p>
+<p class="step-text">The best model answers any new post</p>
+</div>
+</div>
+<svg class="fade" style="--i:8" width="1664" height="80" viewBox="0 0 1664 80" aria-label="Data flowing from step 1 to step 6">
+<line x1="125" y1="40" x2="1539" y2="40" stroke="#C9D3CF" stroke-width="6" stroke-linecap="round"/>
+<circle cx="125" cy="40" r="14" fill="#2F6F62"/>
+<circle cx="408" cy="40" r="14" fill="#2F6F62"/>
+<circle cx="691" cy="40" r="14" fill="#2F6F62"/>
+<circle cx="973" cy="40" r="14" fill="#2F6F62"/>
+<circle cx="1256" cy="40" r="14" fill="#2F6F62"/>
+<circle cx="1539" cy="40" r="18" fill="#B5562F"/>
+<circle cx="125" cy="40" r="10" fill="#E2B24F">
+<animateMotion path="M0 0 H1414" dur="5s" repeatCount="indefinite"/>
+</circle>
+</svg>
+<div class="phases fade" style="--i:9">
+<p class="phase" style="grid-column:1 / 3">Prepare the data</p>
+<p class="phase gold" style="grid-column:3 / 4">Learn</p>
+<p class="phase warm" style="grid-column:4 / 6">Measure honestly</p>
+<p class="phase" style="grid-column:6 / 7">Use it</p>
+</div>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> This is the whole project in six steps. Step 1: we start with Dreaddit, a dataset of Reddit posts that people already labelled. Step 2: we clean the text, add a topic to each post, and split the posts into training, checking and test groups. Step 3: we train three models on the training posts. Step 4: we test each model on 715 posts it never saw. Step 5: we compare them and check the win is not luck. Step 6: the best model goes into our web app. The moving dot shows the data flowing through the steps.</div></div><div class="frame"><p class="label">Slide 4 of 8</p><div class="wrap"><div class="stage"><section id="datasets" class="alt" data-transition="fade">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">The data</p>
+<h2 class="rise" style="--i:1">Two datasets, and how we use them</h2>
+</div>
+<div class="row">
+<div class="card grow rise" style="--i:2">
+<div class="row" style="gap:20px; align-items:center"><h3>Dreaddit</h3><p class="tag">Main study · stress</p></div>
+<p class="card-text">Reddit posts from 10 communities. Label: 1 = stress, 0 = no stress, by human annotators.</p>
+<div class="row" style="gap:56px">
+<div><p class="num">2,838</p><p class="small">posts to train</p></div>
+<div><p class="num">715</p><p class="small">posts to test</p></div>
+</div>
+</div>
+<div class="card grow rise" style="--i:3">
+<div class="row" style="gap:20px; align-items:center"><h3>GoEmotions</h3><p class="tag warm">Extension</p></div>
+<p class="card-text">Short Reddit comments with 27 emotions plus neutral. One comment can have several.</p>
+<div class="row" style="gap:56px">
+<div><p class="num" style="color:#B5562F">43,410</p><p class="small">comments to train</p></div>
+<div><p class="num" style="color:#B5562F">5,427</p><p class="small">comments to test</p></div>
+</div>
+</div>
+</div>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> We use two datasets. The main one is Dreaddit, made at Columbia University in 2019: Reddit posts from 10 communities, labelled 1 for stress or 0 for no stress by human annotators. It has 2,838 posts to train on and 715 to test on. The second is GoEmotions from Google, used only for our extension: short Reddit comments with 27 emotions plus neutral. The coloured bar shows how we use Dreaddit: 2,270 posts to learn from, 568 to check settings, called validation, and 715 test posts that stay hidden until the very end, like a secret exam paper. Both datasets are free on Hugging Face and are in our data folder.</div></div><div class="frame"><p class="label">Slide 5 of 8</p><div class="wrap"><div class="stage"><section id="models" data-transition="fade">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">The models</p>
+<h2 class="rise" style="--i:1">Three models, from simple to smart</h2>
+</div>
+<div class="row">
+<div class="card grow rise" style="--i:2">
+<p class="num" style="color:#7A827D">1</p>
+<p class="card-title">Majority class</p>
+<p class="tag" style="background:#E4E6E0; color:#4A524D">Role: the floor</p>
+<p class="card-text">Ignores the text and always says “stress”, the most common label.</p>
+<p class="card-text"><b>Why:</b> any real model must beat it, or it learned nothing.</p>
+</div>
+<div class="card grow rise" style="--i:3">
+<p class="num" style="color:#B07D16">2</p>
+<p class="card-title">TF-IDF + logistic regression</p>
+<p class="tag" style="background:#F7EBCC; color:#6E520F">Role: the baseline</p>
+<p class="card-text">Counts important words and adds up a learned weight for each one.</p>
+</div>
+<div class="card grow rise" style="--i:4; border-color:#2F6F62">
+<p class="num">3</p>
+<p class="card-title">RoBERTa (fine-tuned)</p>
+<p class="tag">Role: our main model</p>
+<p class="card-text">A language model that already knows English. We train it a little more on our posts.</p>
+<p class="card-text"><b>Strength:</b> reads the whole post and understands context.</p>
+</div>
+</div>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> We compare three models. Model 1, majority class, ignores the text and always says stress. It is the floor: any real model must beat it. Model 2, TF-IDF with logistic regression, is our baseline. It counts important words and gives each word a weight. It is fast and simple, but it does not understand word order, so “not scared anymore” looks like “scared”. Model 3 is RoBERTa, our main model. It already learned English from a huge amount of text, and we fine-tune it on our posts. It reads the whole post and understands context.</div></div><div class="frame"><p class="label">Slide 6 of 8</p><div class="wrap"><div class="stage"><section id="results" data-transition="fade" style="gap:36px">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">Results</p>
+<h2 class="rise" style="--i:1">Our model gets about 8 out of 10 posts right</h2>
+<p class="lead rise" style="--i:2">We tested each model on 715 posts it had never seen, and checked every answer against what people said.</p>
+</div>
+<div class="card score-card">
+<div class="score-row first slidein" style="--i:3">
+<div class="score-label"><p class="score-name" style="color:#2F6F62">Our AI model</p><p class="score-note">RoBERTa, the one our website uses</p></div>
+<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot off"></div><div class="dot off"></div></div>
+<p class="score-val">8 out of 10</p>
+</div>
+<div class="score-row slidein" style="--i:4">
+<div class="score-label"><p class="score-name">A simple model</p><p class="score-note">counts words (TF-IDF)</p></div>
+<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot off"></div><div class="dot off"></div><div class="dot off"></div></div>
+<p class="score-val">7 out of 10</p>
+</div>
+<div class="score-row slidein" style="--i:5">
+<div class="score-label"><p class="score-name">Just guessing</p><p class="score-note">always says “stress”</p></div>
+<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot off"></div><div class="dot off"></div><div class="dot off"></div><div class="dot off"></div><div class="dot off"></div></div>
+<p class="score-val">5 out of 10</p>
+</div>
+</div>
+<p class="callout fade" style="--i:7">Our model makes about a third fewer mistakes than the simple model: 130 instead of 198, out of 715 posts.</p>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> This slide shows how good our model is, in the simplest way. We tested each model on 715 posts it had never seen, and checked every answer against what people said. Green dots are posts it got right. Our AI model, RoBERTa, gets about 8 out of 10 right. A simple model that just counts words gets about 7 out of 10. Just guessing “stress” every time gets 5 out of 10. So our model makes about a third fewer mistakes than the simple model: 130 instead of 198. If someone asks for the technical score: RoBERTa’s F1 is 0.834 against 0.753 for TF-IDF, 8.1 points better, and our target was 3. We also checked it is not luck: we re-tested 10,000 times and it won every time, and it still works on topics it never saw.</div></div><div class="frame"><p class="label">Slide 7 of 8</p><div class="wrap"><div class="stage"><section id="extension" class="alt" data-transition="fade">
+<div class="head">
+<p class="eyebrow rise" style="--i:0">Extra: emotions, and our website</p>
+<h2 class="rise" style="--i:1">It also finds emotions, and anyone can use it</h2>
+</div>
+<div class="row fill">
+<div class="card grow rise" style="--i:2">
+<p class="tag warm">It also finds emotions</p>
+<p class="card-text">A second AI model finds 27 emotions, like joy, fear and anger. One post can have more than one.</p>
+<p class="post">“I can’t stop thinking about the exam tomorrow. I’m scared I will fail.”</p>
+<div class="row pop" style="gap:16px; --i:4">
+<p class="emo">Fear 80%</p>
+<p class="emo">Nervousness 16%</p>
+</div>
+<p class="card-text"><b>Easy:</b> gratitude, love, joy. <b>Hard:</b> rare ones, like grief.</p>
+</div>
+<div class="card grow rise" style="--i:5">
+<p class="tag">How to use our website</p>
+<div class="check-row"><p class="mini-num" style="width:56px">1</p><p class="check-text">Paste a post on the <b>Analyze</b> page</p></div>
+<div class="check-row"><p class="mini-num" style="width:56px">2</p><p class="check-text">Click <b>Analyze</b></p></div>
+<div class="check-row"><p class="mini-num" style="width:56px">3</p><p class="check-text">The <b>Results</b> page shows: stress or not, how sure, the key sentences and the emotions</p></div>
+<p class="card-text">Answers in under a second · nothing you type is saved</p>
+</div>
+</div>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> As an extra, we trained a second AI model that finds 27 emotions, like joy, fear and anger, and one post can have more than one. For example, for “I can’t stop thinking about the exam tomorrow. I’m scared I will fail.” it found fear, 80 percent, and nervousness, 16 percent. Common emotions like gratitude, love and joy are easy for it; rare ones like grief are still hard because there are very few examples. On the right is how anyone uses our website: paste a post on the Analyze page, click Analyze, and the Results page shows whether it sounds stressed, how sure the model is, which sentences mattered and which emotions it found. It answers in under a second, in about 84 milliseconds, and nothing you type is saved. Technical numbers if asked: emotions macro F1 is 0.509 for RoBERTa against 0.451 for TF-IDF. The emotions part runs in our laptop version; the free online server has too little memory for a second model.</div></div><div class="frame"><p class="label">Slide 8 of 8</p><div class="wrap"><div class="stage"><section id="summary" class="dark center" data-transition="fade">
+<p class="eyebrow rise" style="--i:0">In one sentence</p>
+<p class="quote rise" style="--i:1; width:1600px">Fine-tuned RoBERTa finds stress with an F1 of 0.834, 8.1 points better than TF-IDF, and it still works on topics it never saw.</p>
+<div class="row rise" style="--i:2">
+<p class="pill">Works in a live web app</p>
+<p class="pill">Extension: 27 emotions</p>
+</div>
+<p class="lead rise" style="--i:3; width:1600px"><b>Honest limits:</b> not a diagnosis · we disagreed with 13 of 50 dataset labels · English Reddit only · one post, no thread context.</p>
+<p class="cover-sub rise" style="--i:4">Thank you! Questions?</p>
+<p class="small rise" style="--i:5">Code and data: github.com/kdhamu2804/textlab · Team TextLab: Dhamodhar Konduru, Kushvanth Thati, Uday Kiran Thurumella</p>
+
+</section>
+</div></div><div class="notes"><b>Speaker notes:</b> To sum up in one sentence: fine-tuned RoBERTa finds stress with an F1 of 0.834, 8.1 points better than the TF-IDF baseline, and it still works on topics it never saw. The win is statistically real, the model runs in a live web app, and as an extension we also detect 27 emotions. We are also honest about the limits: it is not a medical diagnosis; in our label check we disagreed with the dataset on 13 of 50 posts; the data is only English Reddit; and the model sees one post without the thread. Future work: more context, a mental-health model like MentalBERT, and other websites. Thank you, and we are happy to take questions.</div></div>
+<script>
+function fit() {
+  document.querySelectorAll('.wrap').forEach(function (w) {
+    w.querySelector('.stage').style.transform = 'scale(' + (w.clientWidth / 1920) + ')';
+  });
+}
+window.addEventListener('resize', fit); fit();
+</script>
+</body></html>
