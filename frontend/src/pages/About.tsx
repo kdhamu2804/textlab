@@ -33,6 +33,7 @@ const REFERENCES = [
   "Efron, B. & Tibshirani, R. (1993). An Introduction to the Bootstrap. Chapman & Hall.",
   "McNemar, Q. (1947). Note on the sampling error of the difference between correlated proportions. Psychometrika 12(2).",
   "Zeiler, M. D. & Fergus, R. (2014). Visualizing and Understanding Convolutional Networks. ECCV (occlusion analysis).",
+  "Demszky, D. et al. (2020). GoEmotions: A Dataset of Fine-Grained Emotions. ACL.",
 ];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -135,6 +136,16 @@ export default function About() {
           accuracy with 95% bootstrap confidence intervals, compare models with a paired bootstrap and McNemar's test,
           and run a leave-one-topic-out test. In the app, each sentence is scored by <em>occlusion</em>: how much the
           stress probability drops when that sentence is removed.
+        </p>
+      </Section>
+
+      <Section title="Extension: 27 emotions">
+        <p>
+          Stress is one signal; a post can also show fear, sadness, anger and more. As an extension we trained a second
+          RoBERTa on <strong className="text-ink">GoEmotions</strong> (Demszky et al., 2020): 58,000 Reddit comments
+          labelled with 27 emotions plus neutral, where one comment can have several. Each emotion gets its own decision
+          threshold, tuned on the validation split. This is a separate task and dataset; it does not change the stress
+          study. It runs in the local version of the app (the free online server lacks the memory for a second model).
         </p>
       </Section>
 

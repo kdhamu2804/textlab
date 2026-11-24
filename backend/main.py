@@ -23,6 +23,7 @@ from backend.config import Settings, get_settings
 from backend.schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
+    EmotionsResponse,
     ExplainResponse,
     HealthResponse,
     LabelSheet,
@@ -36,6 +37,7 @@ from backend.schemas import (
 )
 from backend.service import load_metrics, model_info, timed_predict
 from ml.annotation import annotator_items, set_label
+from ml.emotions import load_emotion_predictor
 from ml.predictors import Prediction, Predictor, load_predictor
 
 logger = logging.getLogger("textlab.api")
@@ -65,6 +67,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.predictor = load_predictor(settings.roberta_dir, settings.tfidf_dir, settings.onnx_dir)
         logger.info("Loaded model %r from %s", app.state.predictor.name, app.state.predictor.model_dir)
+        app.state.emotions = load_emotion_predictor(settings.emotion_roberta_dir, settings.emotion_tfidf_dir)
+        logger.info("Emotion model: %s", app.state.emotions.name if app.state.emotions else "none")
         yield
 
     app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan,
@@ -89,7 +93,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def get_model_info(request: Request) -> ModelInfoResponse:
         """Name, test F1 and training date of the loaded model."""
         info = model_info(predictor(request), settings.results_dir)
-        return ModelInfoResponse(**info, max_text_chars=settings.max_text_chars)
+        emotions = request.app.state.emotions
+        return ModelInfoResponse(**info, emotion_model=emotions.name if emotions else None,
+                                 max_text_chars=settings.max_text_chars)
+
+    @app.post("/emotions", response_model=EmotionsResponse, tags=["prediction"])
+    def emotions(body: PredictRequest, request: Request) -> EmotionsResponse:
+        """Extension: probabilities of 27 emotions + neutral (GoEmotions), if an emotion model is installed."""
+        model = request.app.state.emotions
+        if model is None:
+            return EmotionsResponse(available=False)
+        start = time.perf_counter()
+        rows = model.predict(body.text)
+        return EmotionsResponse(available=True, model_name=model.name, display_name=model.display_name,
+                                emotions=rows, latency_ms=round((time.perf_counter() - start) * 1000, 2))
 
     @app.post("/predict", response_model=PredictResponse, tags=["prediction"])
     def predict(body: PredictRequest, request: Request) -> PredictResponse:

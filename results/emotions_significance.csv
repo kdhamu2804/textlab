@@ -1,0 +1,2 @@
+model_a,model_b,metric,difference,difference_low,difference_high,p_value,n_resamples
+tfidf,roberta,macro_f1,0.05800070448135097,0.039885523400624304,0.07809137325351491,0.0005,2000

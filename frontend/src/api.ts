@@ -141,6 +141,42 @@ export interface AgreementRow {
   [key: string]: string | number | null;
 }
 
+export interface EmotionScore {
+  emotion: string;
+  probability: number;
+  threshold: number;
+  detected: boolean;
+}
+
+export interface EmotionsResponse {
+  available: boolean;
+  model_name: string | null;
+  display_name: string | null;
+  emotions: EmotionScore[];
+  latency_ms: number | null;
+}
+
+export interface EmotionMetricRow {
+  model: string;
+  n: number;
+  macro_f1: number;
+  macro_f1_low: number;
+  macro_f1_high: number;
+  micro_f1: number;
+  micro_f1_low: number;
+  micro_f1_high: number;
+}
+
+export interface EmotionLabelRow {
+  model: string;
+  emotion: string;
+  support: number;
+  threshold: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
 export interface LabelItem {
   id: string;
   text: string;
@@ -165,6 +201,9 @@ export interface MetricsResponse {
   calibration_summary: CalibrationSummary[] | null;
   temperature: Temperature | null;
   label_agreement: AgreementRow[] | null;
+  emotions_metrics: EmotionMetricRow[] | null;
+  emotions_per_label: EmotionLabelRow[] | null;
+  emotions_significance: SignificanceRow[] | null;
 }
 
 /** Fetch JSON and turn API errors into readable messages. */
@@ -190,6 +229,8 @@ export const api = {
     request<PredictResponse>("/predict", { method: "POST", body: JSON.stringify({ text }) }),
   explain: (text: string) =>
     request<ExplainResponse>("/explain", { method: "POST", body: JSON.stringify({ text }) }),
+  emotions: (text: string) =>
+    request<EmotionsResponse>("/emotions", { method: "POST", body: JSON.stringify({ text }) }),
   labelSheet: (annotator: string) => request<LabelSheet>(`/label-check/${encodeURIComponent(annotator)}`),
   saveLabel: (annotator: string, postId: string, label: 0 | 1 | null) =>
     request<LabelSheet>(`/label-check/${encodeURIComponent(annotator)}/${encodeURIComponent(postId)}`, {

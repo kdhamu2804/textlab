@@ -2,7 +2,8 @@ import { ArrowRight, BrainCircuit, FileText, Loader2, ScanSearch, Sparkles } fro
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { api, type ExplainResponse, type MetricsResponse, type ModelInfo } from "../api";
+import { api, type EmotionsResponse, type ExplainResponse, type MetricsResponse, type ModelInfo } from "../api";
+import { EmotionPanel } from "../components/Emotions";
 import Explanation from "../components/Explanation";
 import ResultCard from "../components/ResultCard";
 import { EXAMPLES } from "../examples";
@@ -84,6 +85,7 @@ export default function Home() {
   const metrics = useAsync(api.metrics);
   const [text, setText] = useState("");
   const [result, setResult] = useState<ExplainResponse | null>(null);
+  const [emotions, setEmotions] = useState<EmotionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -94,6 +96,7 @@ export default function Home() {
   function reset(next = "") {
     setText(next);
     setResult(null);
+    setEmotions(null);
     setError(null);
   }
 
@@ -102,9 +105,15 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      setResult(await api.explain(text));
+      const [explained, emotionResult] = await Promise.all([
+        api.explain(text),
+        api.emotions(text).catch(() => null),
+      ]);
+      setResult(explained);
+      setEmotions(emotionResult);
     } catch (e) {
       setResult(null);
+      setEmotions(null);
       setError((e as Error).message);
     } finally {
       setLoading(false);
@@ -205,6 +214,8 @@ export default function Home() {
       </div>
 
       {result && <Explanation result={result} />}
+
+      {result && <EmotionPanel result={emotions} />}
 
       <HowItWorks />
     </div>

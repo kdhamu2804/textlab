@@ -33,6 +33,17 @@
 3. **Label-agreement statistics between teammates:** report only agreement with the dataset labels
 4. **Never cut:** test-set F1 comparison, new-topic test, honest limitations
 
+## Changes from the proposal
+
+| Proposal | What we built | Why |
+|---|---|---|
+| Streamlit web app | FastAPI backend + React (TypeScript) frontend | A separate API could be tested on its own: same label as the offline model on 715/715 test posts, ~84 ms per answer. It also made the explanation view and the Results page possible. |
+| RoBERTa trained on Google Colab | Trained on our own laptop GPU (RTX 3050 Ti); the Colab notebook still works | Faster to iterate; same settings as the Colab notebook |
+| One model in the app | Full RoBERTa on the laptop; an 8-bit compressed copy on the free website | Free hosting has 512 MB of memory. The compressed copy has the same F1 (0.834) and differs on only 26/715 borderline posts. All reported results use the full model. |
+| — | Added: significance tests, calibration, sentence explanations | To show the gain is real and the confidence score can be trusted |
+
+**Scope (unchanged):** the task is binary, **stress vs no stress**, because Dreaddit is labelled only for stress. We do not classify other emotions (anger, sadness, fear, happiness); that would need a different dataset.
+
 ## Risks
 
 - **Noisy labels:** the label check measures this. More than 10 disagreements out of 50 → we report it.

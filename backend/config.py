@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from ml.config import DATA_DIR, PROJECT_ROOT, RESULTS_DIR, ROBERTA_DIR, ROBERTA_ONNX_DIR, TFIDF_DIR
+from ml.emotions import EMOTION_ROBERTA_DIR, EMOTION_TFIDF_DIR
 
 
 class Settings(BaseSettings):
@@ -25,6 +26,9 @@ class Settings(BaseSettings):
     label_check_file: Path = DATA_DIR / "label_check.csv"
     # The labelling page writes to label_check_file; switch it off on public deployments.
     labeling_enabled: bool = True
+    # Extension: GoEmotions models (RoBERTa preferred, then TF-IDF); missing models switch the feature off.
+    emotion_roberta_dir: Path = EMOTION_ROBERTA_DIR
+    emotion_tfidf_dir: Path = EMOTION_TFIDF_DIR
     # Built website (``npm run build``); served at / when it exists, e.g. on Hugging Face Spaces.
     frontend_dist: Path = PROJECT_ROOT / "frontend" / "dist"
     max_text_chars: int = 5000

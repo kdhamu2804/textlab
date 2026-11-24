@@ -27,6 +27,7 @@ Dreaddit dataset, a FastAPI backend, and a React + TypeScript frontend.
 ## Contents
 
 - [Results](#results)
+- [Extension: 27 emotions (GoEmotions)](#extension-27-emotions-goemotions)
 - [Project structure](#project-structure)
 - [Install](#install)
 - [Run the pipeline](#run-the-pipeline)
@@ -177,6 +178,43 @@ automatically) or fill in the CSV. Agreement with the dataset and between team m
 the Results page as soon as labels exist, and `python -m scripts.label_agreement` saves it to
 `results/label_agreement.csv`. Per the proposal, more than 10 disagreements with the dataset labels is reported
 as a label-quality problem.
+
+## Extension: 27 emotions (GoEmotions)
+
+Stress is one signal; a post can also show fear, sadness, anger and more. As an extension, a **second, separate**
+model detects 27 emotions plus neutral. The stress study above (Dreaddit) is unchanged.
+
+- **Data:** GoEmotions (Demszky et al., 2020), `google-research-datasets/go_emotions` ("simplified"): 43,410 train /
+  5,426 validation / 5,427 test Reddit comments. Multi-label: a comment can have several emotions (1.18 on average).
+  Very uneven: neutral has 14,219 training examples, grief only 77.
+- **Models:** TF-IDF (word 1–2 grams) + one logistic regression per emotion (C chosen on validation), and
+  `roberta-base` fine-tuned with one sigmoid output per emotion (lr 3e-5, batch 16, max 128 tokens, best epoch by
+  validation loss: epoch 3 of 4).
+- **Thresholds:** each emotion gets its own probability threshold, chosen to maximize that emotion's F1 on the
+  **validation** split. The test split is used once, for the scores below.
+
+| Model | Macro F1 (mean over 28 labels) | Micro F1 (all decisions pooled) |
+|---|---|---|
+| TF-IDF + LR | 0.451 [0.429, 0.469] | 0.525 [0.515, 0.535] |
+| **RoBERTa** | **0.509** [0.489, 0.525] | **0.602** [0.592, 0.612] |
+
+RoBERTa vs TF-IDF macro F1: **+5.8 points** [+4.0, +7.8], paired bootstrap p < 0.001 (`results/emotions_*.csv`,
+chart `results/emotions_per_label.png`). Best emotions: gratitude 0.92, amusement 0.83, love 0.81; hardest:
+realization 0.21 and grief 0.00 (only 6 test comments; RoBERTa never predicted it, while TF-IDF reached 0.46 on it).
+
+In the app, the Analyze page shows "Emotions in this post" next to the stress result (`POST /emotions`). It runs
+in the **local** version only: the free 512 MB server cannot hold a second model, so online it says so.
+
+```powershell
+python -m scripts.prepare_emotions                 # download GoEmotions
+python -m scripts.train_emotions --model tfidf     # minutes, CPU
+python -m scripts.train_emotions --model roberta   # about 25 minutes on an RTX 3050 Ti
+python -m scripts.evaluate_emotions                # test scores with CIs, per-emotion table and chart
+```
+
+Limitations: GoEmotions labels are single short comments rated by crowd workers; rare emotions have very few
+examples; and the two models are trained on different data, so the emotion panel and the stress result can
+disagree.
 
 ## Project structure
 

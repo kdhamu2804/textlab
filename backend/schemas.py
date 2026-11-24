@@ -129,6 +129,7 @@ class ModelInfoResponse(BaseModel):
     test_f1_ci: tuple[float, float] | None
     trained_at: str | None
     temperature: float | None = Field(None, description="Calibration temperature (RoBERTa only)")
+    emotion_model: str | None = Field(None, description="Loaded GoEmotions model, if any")
     max_text_chars: int
 
 
@@ -145,3 +146,25 @@ class MetricsResponse(BaseModel):
     calibration_summary: list[dict[str, Any]] | None = None
     temperature: dict[str, Any] | None = None
     label_agreement: list[dict[str, Any]] | None = None
+    emotions_metrics: list[dict[str, Any]] | None = None
+    emotions_per_label: list[dict[str, Any]] | None = None
+    emotions_significance: list[dict[str, Any]] | None = None
+
+
+class EmotionOut(BaseModel):
+    """One emotion: its probability and whether it passes its validation-tuned threshold."""
+
+    emotion: str
+    probability: float = Field(..., ge=0, le=1)
+    threshold: float
+    detected: bool
+
+
+class EmotionsResponse(BaseModel):
+    """Response of ``POST /emotions`` (extension trained on GoEmotions)."""
+
+    available: bool = Field(..., description="False when no emotion model is installed on this server")
+    model_name: str | None = None
+    display_name: str | None = None
+    emotions: list[EmotionOut] = Field(default_factory=list, description="All 28 labels, most likely first")
+    latency_ms: float | None = None

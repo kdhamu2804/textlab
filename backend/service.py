@@ -18,6 +18,7 @@ TEMPERATURE_FILE = "temperature.csv"
 # Tables written by scripts.analyze and scripts.label_agreement, served as lists of rows.
 TABLE_FILES: tuple[str, ...] = (
     "confusion", "significance", "calibration", "calibration_summary", "label_agreement",
+    "emotions_metrics", "emotions_per_label", "emotions_significance",
 )
 ERRORS_FILE = "errors.csv"
 

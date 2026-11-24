@@ -161,6 +161,30 @@ def plot_calibration(bins: pd.DataFrame, summary: pd.DataFrame, path: Path) -> N
     _save(fig, path)
 
 
+def plot_emotion_f1(per_label: pd.DataFrame, path: Path) -> None:
+    """Horizontal bars: test F1 per emotion and model, sorted by the last model's F1."""
+    models = list(dict.fromkeys(per_label["model"]))
+    order = per_label[per_label["model"] == models[-1]].sort_values("f1")["emotion"].tolist()
+    fig, ax = plt.subplots(figsize=(8, 9), dpi=150)
+    y = np.arange(len(order))
+    height = 0.8 / len(models)
+    for i, model in enumerate(models):
+        part = per_label[per_label["model"] == model].set_index("emotion").loc[order]
+        ax.barh(y + (i - (len(models) - 1) / 2) * height, part["f1"], height=height,
+                color=MODEL_COLORS.get(model, TEXT), label=MODEL_LABELS.get(model, model))
+    ax.set_yticks(y, order)
+    ax.set_xlim(0, 1)
+    ax.set_title("GoEmotions test set: F1 per emotion", loc="left", fontsize=12, color=TEXT, pad=12)
+    ax.set_xlabel("F1", color=MUTED)
+    ax.xaxis.grid(True, color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.tick_params(colors=MUTED, length=0)
+    ax.legend(frameon=False, loc="lower right")
+    _save(fig, path)
+
+
 def _legend(ax: plt.Axes, ncol: int) -> None:
     """Place a frameless legend below the plot."""
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=ncol)

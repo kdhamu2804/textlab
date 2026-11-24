@@ -19,7 +19,7 @@ STRESS_TEXT = "I am terrified, I can't sleep and I have panic attacks every nigh
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
     """API client that always uses the TF-IDF model (no RoBERTa folder)."""
-    settings = Settings(roberta_dir=tmp_path_factory.mktemp("no_roberta"), onnx_dir=tmp_path_factory.mktemp("no_onnx"))
+    settings = Settings(roberta_dir=tmp_path_factory.mktemp("no_roberta"), onnx_dir=tmp_path_factory.mktemp("no_onnx"), emotion_roberta_dir=tmp_path_factory.mktemp("no_emo"))
     with TestClient(create_app(settings)) as c:
         yield c
 
@@ -111,7 +111,7 @@ def test_serves_built_frontend(tmp_path) -> None:
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text("<html>app</html>")
     (dist / "assets" / "app.js").write_text("console.log(1)")
-    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", frontend_dist=dist)
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", emotion_roberta_dir=tmp_path / "none", frontend_dist=dist)
     with TestClient(create_app(settings)) as c:
         assert c.get("/").text == "<html>app</html>"
         assert c.get("/results").text == "<html>app</html>"        # client-side route
@@ -132,7 +132,7 @@ def label_client(tmp_path):
 
     copy = tmp_path / "label_check.csv"
     copy.write_bytes(LABEL_CHECK_FILE.read_bytes())
-    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", label_check_file=copy)
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", emotion_roberta_dir=tmp_path / "none", label_check_file=copy)
     with TestClient(create_app(settings)) as c:
         yield c, copy
 
@@ -145,9 +145,11 @@ def test_label_sheet_hides_dataset_label(label_client) -> None:
 
 
 def test_saving_a_label_updates_file_and_agreement(label_client) -> None:
+    # Works whether or not the (temporary copy of the) file already has labels.
     client, path = label_client
     post = client.get("/label-check/uday").json()["items"][0]
-    before = pd.read_csv(path, dtype={"id": str})["uday"].notna().sum()
+    client.put(f"/label-check/uday/{post['id']}", json={"label": None})
+    before = client.get("/label-check/uday").json()["n_done"]
     body = client.put(f"/label-check/uday/{post['id']}", json={"label": 1}).json()
     saved = pd.read_csv(path, dtype={"id": str}).set_index("id")
     assert saved.at[post["id"], "uday"] == 1
@@ -167,7 +169,7 @@ def test_label_rejects_bad_requests(label_client, url: str, payload: dict, statu
 
 
 def test_labeling_can_be_switched_off(tmp_path) -> None:
-    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", labeling_enabled=False)
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", emotion_roberta_dir=tmp_path / "none", labeling_enabled=False)
     with TestClient(create_app(settings)) as c:
         assert c.get("/label-check/uday").status_code == 403
 
@@ -176,7 +178,7 @@ def test_errors_include_manual_groups(tmp_path) -> None:
     errors = pd.read_csv(get_settings().results_dir / "errors.csv", dtype={"id": str})
     groups = tmp_path / "groups.csv"
     pd.DataFrame({"id": [errors["id"][0]], "group": ["Test group"], "reviewed_by": ["uday"]}).to_csv(groups, index=False)
-    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", error_groups_file=groups)
+    settings = Settings(roberta_dir=tmp_path / "none", onnx_dir=tmp_path / "none", emotion_roberta_dir=tmp_path / "none", error_groups_file=groups)
     with TestClient(create_app(settings)) as c:
         first = c.get("/metrics").json()["errors"][0]
     assert (first["group"], first["reviewed_by"]) == ("Test group", "uday")

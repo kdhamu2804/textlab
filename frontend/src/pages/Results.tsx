@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, type ErrorRow, type MetricRow, type MetricsResponse } from "../api";
 import { Calibration, ConfusionMatrices, LabelAgreement, SectionHeading, Significance } from "../components/Analysis";
 import CiBarChart, { type CiValue } from "../components/CiBarChart";
+import { EmotionResults } from "../components/Emotions";
 import {
   METRIC_NAMES,
   MODEL_NAMES,
@@ -32,6 +33,7 @@ const SECTIONS = [
   ["labels", "Label check"],
   ["app", "App checks"],
   ["errors", "Errors"],
+  ["emotions", "Emotions (extension)"],
 ] as const;
 
 function ci(row: MetricRow, metric: MetricKey): CiValue {
@@ -428,6 +430,19 @@ export default function Results() {
             for manual grouping into error types.
           </SectionHeading>
           <Errors data={data} />
+        </section>
+      ) : null}
+
+      {data.emotions_metrics?.length ? (
+        <section className="space-y-5">
+          <SectionHeading id="emotions" title="Extension: detecting 27 emotions">
+            A separate task on a separate dataset: GoEmotions (Demszky et al., 2020), 58,000 Reddit comments labelled
+            with 27 emotions plus neutral, where one comment can have several. Each emotion's decision threshold was
+            chosen on the validation split; the scores below are on the 5,427 test comments. The stress results above do
+            not change.
+          </SectionHeading>
+          <EmotionResults metrics={data.emotions_metrics} perLabel={data.emotions_per_label}
+                          significance={data.emotions_significance} />
         </section>
       ) : null}
     </div>
