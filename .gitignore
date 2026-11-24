@@ -12,6 +12,7 @@ venv/
 *.docx
 *.pdf
 !docs/TextLab_Project_Proposal_updated.pdf
+!docs/TextLab_Project_Guide_v2.pdf
 
 # Tool caches
 .ruff_cache/
