@@ -1,5 +1,5 @@
-import { CheckCircle2, CircleAlert } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, ChevronDown, CircleAlert, Lightbulb } from "lucide-react";
+import { type ReactNode, useState } from "react";
 
 import { api, type ErrorRow, type MetricRow, type MetricsResponse } from "../api";
 import { Calibration, ConfusionMatrices, LabelAgreement, SectionHeading, Significance } from "../components/Analysis";
@@ -27,7 +27,7 @@ const SECTIONS = [
   ["answer", "Answer"],
   ["comparison", "Model comparison"],
   ["significance", "Significance"],
-  ["confusion", "Confusion matrices"],
+  ["confusion", "Mistakes"],
   ["new-topic", "New topics"],
   ["calibration", "Calibration"],
   ["labels", "Label check"],
@@ -51,6 +51,30 @@ function Stat({ label, value, note, accent = false }: { label: string; value: st
       <p className={`mt-1 text-3xl font-semibold tabular-nums ${accent ? "text-accent" : ""}`}>{value}</p>
       {note && <p className="mt-1 text-xs leading-snug text-ink-3">{note}</p>}
     </div>
+  );
+}
+
+/** One plain-English sentence under a chart. */
+function Meaning({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-accent/25 bg-accent-soft p-4 leading-relaxed text-ink">
+      <Lightbulb className="mt-0.5 shrink-0 text-accent" size={20} aria-hidden />
+      <p><span className="font-semibold">What this means: </span>{children}</p>
+    </div>
+  );
+}
+
+/** Technical text and charts, hidden until the reader asks for them. */
+function Details({ children, label = "Show details" }: { children: ReactNode; label?: string }) {
+  return (
+    <details className="group rounded-2xl border border-border bg-surface">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium text-accent hover:bg-surface-2 [&::-webkit-details-marker]:hidden">
+        <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden />
+        <span className="group-open:hidden">{label}</span>
+        <span className="hidden group-open:inline">Hide details</span>
+      </summary>
+      <div className="space-y-4 border-t border-border p-4 text-sm leading-relaxed text-ink-2">{children}</div>
+    </details>
   );
 }
 
@@ -97,13 +121,24 @@ function Answer({ data }: { data: MetricsResponse }) {
             {met ? "Yes: RoBERTa beats the TF-IDF baseline, and the gain is statistically significant." : "The success criterion was not met."}
           </p>
           <p>
-            Research question: <em>can our app find stress with RoBERTa and beat a TF-IDF model by at least 3 F1 points?</em>{" "}
-            RoBERTa reaches F1 {score(rob.f1)} vs {score(tf.f1)} ({points(sig.difference)} points; the 95% CI of the gain
-            excludes zero; paired bootstrap {pValue(sig.p_value)}, McNemar {pValue(sig.mcnemar_p)}).
-            {beatsSeen && " On every held-out topic, RoBERTa still scores higher than TF-IDF does on topics it was trained on."}
+            RoBERTa scores {score(rob.f1)} and the simple TF-IDF model scores {score(tf.f1)} (1.0 would be perfect).
+            Our goal was a gain of at least 3 points; we got {points(sig.difference)}.
           </p>
         </div>
       </div>
+      <Details>
+        <p>
+          Research question: <em>can our app find stress with RoBERTa and beat a TF-IDF model by at least 3 F1 points?</em>{" "}
+          RoBERTa reaches F1 {score(rob.f1)} vs {score(tf.f1)} ({points(sig.difference)} points; the 95% CI of the gain
+          excludes zero; paired bootstrap {pValue(sig.p_value)}, McNemar {pValue(sig.mcnemar_p)}).
+          {beatsSeen && " On every held-out topic, RoBERTa still scores higher than TF-IDF does on topics it was trained on."}
+        </p>
+        <p>
+          Every number on this page is loaded live from <code>results/</code>. F1, precision and recall are for the
+          <em> stress</em> class. Models were tuned on a validation split of the training data; the 715 test posts were
+          used only for these final scores.
+        </p>
+      </Details>
     </div>
   );
 }
@@ -344,15 +379,35 @@ export default function Results() {
   const data = state.data;
   if (!data.metrics.length) return <p className="text-ink-3">No results yet. Run the evaluation scripts first.</p>;
 
+  // Numbers for the plain-English lines, read from the same results as the charts.
+  const rob = headline(data.metrics, "roberta");
+  const tf = headline(data.metrics, "tfidf");
+  const sig = data.significance?.find((s) => s.model_a === "tfidf" && s.model_b === "roberta");
+  const confRob = data.confusion?.find((c) => c.model === "roberta");
+  const confTf = data.confusion?.find((c) => c.model === "tfidf");
+  const drops = TOPICS.map((t) => {
+    const seen = find(data.metrics, "roberta", "in_topic", t);
+    const held = find(data.metrics, "roberta", "new_topic", t);
+    return seen && held ? seen.f1 - held.f1 : null;
+  }).filter((d): d is number => d !== null);
+  const maxDrop = drops.length ? Math.max(...drops) : null;
+  const ece = data.calibration_summary?.find((s) => s.model === "roberta")?.ece;
+  const eceBefore = data.temperature?.test_ece_before;
+  const vsDataset = data.label_agreement?.find((r) => r.rater_b === "dataset_label");
+  const labelN = vsDataset ? Number(vsDataset.n) : 0;
+  const labelDisagree = vsDataset ? Math.round((labelN * (100 - Number(vsDataset.agreement_pct))) / 100) : 0;
+  const falseAlarms = data.errors?.filter((e) => e.error_type === "false positive").length ?? 0;
+  const emoRob = data.emotions_metrics?.find((m) => m.model === "roberta");
+  const emoTf = data.emotions_metrics?.find((m) => m.model === "tfidf");
+
   return (
     <div className="space-y-12">
       <header className="max-w-3xl">
         <p className="mb-2 text-sm font-medium uppercase tracking-wider text-accent">Evaluation</p>
         <h1 className="text-4xl font-semibold tracking-tight">Results</h1>
         <p className="mt-3 text-ink-2">
-          Every number on this page was produced by the evaluation code and loaded live from <code>results/</code>.
-          F1, precision and recall are for the <em>stress</em> class. Models were tuned on a validation split of the
-          training data; the 715 test posts were used only for these final scores.
+          How well our models work, explained in plain words. Each section starts with what it means; click
+          <strong className="text-ink"> Show details</strong> to see the technical numbers and charts.
         </p>
       </header>
 
@@ -364,85 +419,160 @@ export default function Results() {
       </section>
 
       <section className="space-y-5">
-        <SectionHeading id="comparison" title="Model comparison">
-          The majority-class floor scores F1 0.68 because it labels every post as stress (recall 1.0), which is why
-          precision and accuracy are reported alongside F1.
-        </SectionHeading>
+        <SectionHeading id="comparison" title="Model comparison" />
+        {rob && tf && (
+          <Meaning>
+            Taller bars are better. RoBERTa ({score(rob.f1)}) beats the simple word-counting model ({score(tf.f1)}). The
+            “always say stress” model looks fine on recall only because it never misses a stress post, but half of its
+            alarms are wrong.
+          </Meaning>
+        )}
         <ModelComparison rows={data.metrics} colors={colors} />
+        <Details>
+          <p>
+            F1 balances precision (how many “stress” answers are right) and recall (how many stress posts are found).
+            The majority-class floor scores F1 0.68 because it labels every post as stress (recall 1.0), which is why
+            precision and accuracy are reported alongside F1. Whiskers are 95% bootstrap confidence intervals.
+          </p>
+        </Details>
       </section>
 
       {data.significance?.length ? (
         <section className="space-y-5">
-          <SectionHeading id="significance" title="Is the difference real?">
-            Both models are scored on the same test posts, so we use paired tests: a paired bootstrap of the F1
-            difference (10,000 resamples, one-sided) and McNemar's exact test on the posts where exactly one model is right.
-          </SectionHeading>
-          <Significance rows={data.significance} />
+          <SectionHeading id="significance" title="Is the difference real?" />
+          <Meaning>
+            We re-checked the comparison 10,000 times on reshuffled test posts, and RoBERTa came out ahead every time
+            {sig ? ` (${pValue(sig.p_value)})` : ""}. So the win is real, not luck.
+          </Meaning>
+          <Details>
+            <p>
+              Both models are scored on the same test posts, so we use paired tests: a paired bootstrap of the F1
+              difference (10,000 resamples, one-sided) and McNemar&apos;s exact test on the posts where exactly one model
+              is right.
+            </p>
+            <Significance rows={data.significance} />
+          </Details>
         </section>
       ) : null}
 
       {data.confusion?.length ? (
         <section className="space-y-5">
-          <SectionHeading id="confusion" title="Confusion matrices">
-            Where each model goes wrong. RoBERTa removes about a third of TF-IDF's false positives and over a third of
-            its false negatives.
-          </SectionHeading>
-          <ConfusionMatrices rows={data.confusion} />
+          <SectionHeading id="confusion" title="Kinds of mistakes" />
+          <Meaning>
+            RoBERTa makes fewer of both kinds of mistakes
+            {confRob && confTf
+              ? `: ${confRob.fp} false alarms (TF-IDF: ${confTf.fp}) and ${confRob.fn} missed stress posts (TF-IDF: ${confTf.fn}).`
+              : ": fewer false alarms and fewer missed stress posts."}
+          </Meaning>
+          <Details>
+            <p>
+              A confusion matrix counts four outcomes: true negatives, false positives (said stress, was not), false
+              negatives (missed a stress post) and true positives.
+            </p>
+            <ConfusionMatrices rows={data.confusion} />
+          </Details>
         </section>
       ) : null}
 
       <section className="space-y-5">
-        <SectionHeading id="new-topic" title="Does it work on topics it has never seen?">
-          Leave-one-topic-out: for each topic, a model is trained on the other four and tested on that topic. A small
-          drop means the model learned signs of stress rather than topic words.
-        </SectionHeading>
+        <SectionHeading id="new-topic" title="Does it work on topics it has never seen?" />
+        <Meaning>
+          We trained RoBERTa without one topic and then tested it on that topic.
+          {maxDrop !== null && ` Its score dropped by at most ${score(maxDrop)}.`} So it learned real signs of stress, not
+          just topic words.
+        </Meaning>
         <NewTopic rows={data.metrics} colors={colors} />
+        <Details>
+          <p>
+            Leave-one-topic-out: for each of the five topics, a model is trained on the other four and tested on that
+            topic, then compared with the standard model that did see the topic. A small drop means the model learned
+            signs of stress rather than topic words.
+          </p>
+        </Details>
       </section>
 
       {data.calibration?.length && data.calibration_summary?.length ? (
         <section className="space-y-5">
-          <SectionHeading id="calibration" title="Can the confidence score be trusted?">
-            The app shows a probability, so it should mean what it says: of posts given 80%, about 80% should be stress.
-          </SectionHeading>
-          <Calibration bins={data.calibration} summary={data.calibration_summary} temperature={data.temperature} />
+          <SectionHeading id="calibration" title="Can the confidence score be trusted?" />
+          <Meaning>
+            When the app says “80% sure”, it should be right about 80% of the time. Raw RoBERTa was over-confident, so
+            we corrected it
+            {ece !== undefined && eceBefore !== undefined
+              ? `: its calibration error dropped from ${score(eceBefore)} to ${score(ece)} (0 is perfect).`
+              : "."}
+          </Meaning>
+          <Details>
+            <p>
+              Temperature scaling divides the model&apos;s raw scores by one number, fitted on validation data. It never
+              changes which answer the model gives, only how confident it is.
+            </p>
+            <Calibration bins={data.calibration} summary={data.calibration_summary} temperature={data.temperature} />
+          </Details>
         </section>
       ) : null}
 
       <section className="space-y-5">
-        <SectionHeading id="labels" title="Label check">
-          Our biggest risk was noisy crowd labels. Three team members independently label the same 50 training posts
-          with one rule: “Does the writer sound stressed, worried or upset?”
-        </SectionHeading>
-        <LabelAgreement rows={data.label_agreement} />
+        <SectionHeading id="labels" title="Label check" />
+        <Meaning>
+          {vsDataset
+            ? `Three of us labelled the same ${labelN} posts ourselves. We disagreed with the dataset on about ${labelDisagree} of them, so some dataset labels are noisy, and we report that.`
+            : "Three of us label the same 50 posts ourselves, to check how good the dataset's labels are."}
+        </Meaning>
+        <Details>
+          <p>
+            Our biggest risk was noisy crowd labels. Three team members label the same 50 training posts with one rule:
+            “Does the writer sound stressed, worried or upset?” Agreement is shown as a percentage and as Cohen&apos;s
+            kappa (agreement corrected for chance; 1 = perfect, 0 = guessing).
+          </p>
+          <LabelAgreement rows={data.label_agreement} />
+        </Details>
       </section>
 
       <section className="space-y-5">
-        <SectionHeading id="app" title="App checks">
-          The deployed API must give the same answers as the offline model, and answer in under one second.
-        </SectionHeading>
+        <SectionHeading id="app" title="App checks" />
+        <Meaning>
+          {data.api_check && data.latency
+            ? `The website gave exactly the same answer as our tested model on ${data.api_check.n_label_match} of ${data.api_check.n_posts} posts, and answers in about ${data.latency.server_mean_ms.toFixed(0)} ms, far under our 1-second goal.`
+            : "The website must give the same answers as our tested model, in under one second."}
+        </Meaning>
         <AppChecks data={data} />
       </section>
 
       {data.errors?.length ? (
         <section className="space-y-5">
-          <SectionHeading id="errors" title="Where the model is wrong">
-            {data.errors.length} misclassified test posts (random sample, seed 42) from <code>results/errors.csv</code>,
-            for manual grouping into error types.
-          </SectionHeading>
+          <SectionHeading id="errors" title="Where the model is wrong" />
+          <Meaning>
+            Most mistakes ({falseAlarms} of {data.errors.length} we studied) are false alarms: calm posts about serious
+            topics, like someone calmly describing a past trauma. Click a group below to read real examples.
+          </Meaning>
           <Errors data={data} />
+          <Details>
+            <p>
+              {data.errors.length} misclassified test posts (random sample, seed 42) from <code>results/errors.csv</code>,
+              grouped by hand into error types in <code>data/error_groups.csv</code>.
+            </p>
+          </Details>
         </section>
       ) : null}
 
       {data.emotions_metrics?.length ? (
         <section className="space-y-5">
-          <SectionHeading id="emotions" title="Extension: detecting 27 emotions">
-            A separate task on a separate dataset: GoEmotions (Demszky et al., 2020), 58,000 Reddit comments labelled
-            with 27 emotions plus neutral, where one comment can have several. Each emotion's decision threshold was
-            chosen on the validation split; the scores below are on the 5,427 test comments. The stress results above do
-            not change.
-          </SectionHeading>
+          <SectionHeading id="emotions" title="Extension: detecting 27 emotions" />
+          <Meaning>
+            A second model finds emotions like joy, fear and anger in a post.
+            {emoRob && emoTf && ` RoBERTa scores ${score(emoRob.macro_f1)} against ${score(emoTf.macro_f1)} for the simple model.`}{" "}
+            Common emotions like gratitude are easy; rare ones like grief are still hard.
+          </Meaning>
           <EmotionResults metrics={data.emotions_metrics} perLabel={data.emotions_per_label}
                           significance={data.emotions_significance} />
+          <Details>
+            <p>
+              A separate task on a separate dataset: GoEmotions (Demszky et al., 2020), 58,000 Reddit comments labelled
+              with 27 emotions plus neutral, where one comment can have several. Each emotion&apos;s decision threshold
+              was chosen on the validation split; the scores are on the 5,427 test comments. Macro F1 is the average over
+              the 28 labels; micro F1 pools all decisions. The stress results above do not change.
+            </p>
+          </Details>
         </section>
       ) : null}
     </div>

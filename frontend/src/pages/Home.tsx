@@ -1,13 +1,13 @@
-import { ArrowRight, BrainCircuit, FileText, Loader2, ScanSearch, Sparkles } from "lucide-react";
+import { ArrowRight, ClipboardPaste, Loader2, MousePointerClick, ScanSearch, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { api, type EmotionsResponse, type ExplainResponse, type MetricsResponse, type ModelInfo } from "../api";
+import { api, type EmotionsResponse, type ExplainResponse, type ModelInfo } from "../api";
 import { EmotionPanel } from "../components/Emotions";
 import Explanation from "../components/Explanation";
 import ResultCard from "../components/ResultCard";
 import { EXAMPLES } from "../examples";
-import { MODEL_NAMES, headline, points, pValue, score } from "../format";
+import { MODEL_NAMES, score } from "../format";
 import { type AsyncState, useAsync } from "../hooks";
 
 const DEFAULT_LIMIT = 5000;
@@ -25,35 +25,10 @@ function ModelBadge({ info }: { info: AsyncState<ModelInfo> }) {
   );
 }
 
-/** Three headline findings, read from the saved results. */
-function KeyFindings({ metrics }: { metrics: AsyncState<MetricsResponse> }) {
-  if (metrics.status !== "ready") return null;
-  const { metrics: rows, significance } = metrics.data;
-  const best = headline(rows, "roberta") ?? headline(rows, "tfidf");
-  if (!best) return null;
-  const gain = significance?.find((s) => s.model_b === best.model);
-  const items = [
-    { value: score(best.f1), label: `${MODEL_NAMES[best.model]} F1 on ${best.n} held-out posts` },
-    gain && { value: points(gain.difference), label: `F1 points over ${MODEL_NAMES[gain.model_a]} (${pValue(gain.p_value)})` },
-    { value: `${(best.accuracy * 100).toFixed(1)}%`, label: "accuracy on the test set" },
-  ].filter(Boolean) as { value: string; label: string }[];
-  return (
-    <dl className="mt-8 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
-      {items.map((item) => (
-        <div key={item.label} className="rounded-2xl border border-border bg-surface/70 px-4 py-3">
-          <dt className="sr-only">{item.label}</dt>
-          <dd className="text-2xl font-semibold tabular-nums text-accent">{item.value}</dd>
-          <dd className="mt-0.5 text-xs leading-snug text-ink-3">{item.label}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 const STEPS = [
-  { icon: FileText, title: "Paste a post", text: "Any Reddit-style text, up to 5,000 characters." },
-  { icon: BrainCircuit, title: "Fine-tuned RoBERTa", text: "Trained on 2,838 Dreaddit posts, with calibrated probabilities." },
-  { icon: ScanSearch, title: "See the evidence", text: "Each sentence is scored by how much it moves the prediction." },
+  { icon: ClipboardPaste, title: "Paste a post", text: "Type or paste any short post." },
+  { icon: MousePointerClick, title: "Click Analyze", text: "Our AI model reads it in under a second." },
+  { icon: ScanSearch, title: "See the answer", text: "Stress or not, how sure, key sentences and emotions." },
 ];
 
 function HowItWorks() {
@@ -82,7 +57,6 @@ function HowItWorks() {
 
 export default function Home() {
   const info = useAsync(api.modelInfo);
-  const metrics = useAsync(api.metrics);
   const [text, setText] = useState("");
   const [result, setResult] = useState<ExplainResponse | null>(null);
   const [emotions, setEmotions] = useState<EmotionsResponse | null>(null);
@@ -128,16 +102,15 @@ export default function Home() {
           aria-hidden
         />
         <p className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
-          <Sparkles size={14} aria-hidden /> NLP research demo · Dreaddit
+          <Sparkles size={14} aria-hidden /> Stress &amp; emotion checker
         </p>
         <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          Does this post show signs of stress?
+          Paste a post. See if it sounds stressed.
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-ink-2">
-          A fine-tuned language model reads a Reddit-style post, estimates how likely it is that the writer sounds
-          stressed, and shows which sentences drove that judgement.
+          TextLab reads a short post and tells you if the writer sounds stressed, how sure it is, which sentences show
+          it, and which emotions it contains.
         </p>
-        <KeyFindings metrics={metrics} />
       </section>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,23rem)]">
