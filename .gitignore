@@ -37,3 +37,6 @@ Thumbs.db
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Local assistant notes (kept on this laptop only)
+CLAUDE.md
