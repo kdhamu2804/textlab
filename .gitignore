@@ -11,6 +11,7 @@ venv/
 # Course documents in the project folder
 *.docx
 *.pdf
+!docs/TextLab_Project_Proposal_updated.pdf
 
 # Tool caches
 .ruff_cache/

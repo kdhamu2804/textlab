@@ -1,0 +1,7 @@
+rater_a,rater_b,n,agreement_pct,cohen_kappa
+dhamodhar,dataset_label,50,74.0,0.4165170556552963
+kushvanth,dataset_label,50,74.0,0.4247787610619469
+uday,dataset_label,50,74.0,0.4165170556552963
+dhamodhar,kushvanth,50,96.0,0.8648648648648649
+dhamodhar,uday,50,100.0,1.0
+kushvanth,uday,50,96.0,0.8648648648648649
