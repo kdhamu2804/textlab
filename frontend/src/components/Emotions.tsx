@@ -69,23 +69,21 @@ export function EmotionPanel({ result }: { result: EmotionsResponse | null }) {
 
 const MODEL_LABEL: Record<string, string> = { tfidf: "TF-IDF + LR", roberta: "RoBERTa" };
 
-/** Results-page section for the GoEmotions extension. */
-export function EmotionResults({
+function bestModel(metrics: EmotionMetricRow[]) {
+  return metrics.find((m) => m.model === "roberta") ?? metrics[metrics.length - 1];
+}
+
+/** Overall emotion scores (macro and micro F1) with the paired test. */
+export function EmotionScoreTable({
   metrics,
-  perLabel,
   significance,
 }: {
   metrics: EmotionMetricRow[];
-  perLabel: EmotionLabelRow[] | null;
   significance: SignificanceRow[] | null;
 }) {
-  const best = metrics.find((m) => m.model === "roberta") ?? metrics[metrics.length - 1];
   const sig = significance?.[0];
-  const rows = (perLabel ?? []).filter((r) => r.model === best.model).sort((a, b) => b.f1 - a.f1);
-  const base = (perLabel ?? []).filter((r) => r.model !== best.model);
   return (
-    <div className="space-y-4">
-      <div className="card overflow-x-auto">
+    <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-ink-3">
@@ -114,12 +112,31 @@ export function EmotionResults({
             <span className="text-ink-3">(95% CI [{points(sig.difference_low)}, {points(sig.difference_high)}], paired bootstrap {pValue(sig.p_value)})</span>
           </p>
         )}
-      </div>
-      {rows.length > 0 && (
+    </div>
+  );
+}
+
+/** One bar per emotion: how well the best model finds it (F1), with the baseline as a grey tick. */
+export function EmotionBars({
+  metrics,
+  perLabel,
+  title,
+  description,
+}: {
+  metrics: EmotionMetricRow[];
+  perLabel: EmotionLabelRow[] | null;
+  title?: string;
+  description?: string;
+}) {
+  const best = bestModel(metrics);
+  const rows = (perLabel ?? []).filter((r) => r.model === best.model).sort((a, b) => b.f1 - a.f1);
+  const base = (perLabel ?? []).filter((r) => r.model !== best.model);
+  if (!rows.length) return null;
+  return (
         <div className="card p-5 sm:p-6">
-          <p className="mb-1 font-semibold">F1 per emotion · {MODEL_LABEL[best.model] ?? best.model}</p>
+          <p className="mb-1 font-semibold">{title ?? `F1 per emotion · ${MODEL_LABEL[best.model] ?? best.model}`}</p>
           <p className="mb-4 text-sm text-ink-3">
-            5,427 test comments. Grey tick = TF-IDF for comparison. Rare emotions (few training examples) are hardest.
+            {description ?? "5,427 test comments. Grey tick = TF-IDF for comparison. Rare emotions (few training examples) are hardest."}
           </p>
           <ul className="grid gap-x-8 gap-y-1.5 sm:grid-cols-2">
             {rows.map((r) => {
@@ -138,7 +155,23 @@ export function EmotionResults({
             })}
           </ul>
         </div>
-      )}
+  );
+}
+
+/** Results-page section for the GoEmotions extension: the score table and the per-emotion bars. */
+export function EmotionResults({
+  metrics,
+  perLabel,
+  significance,
+}: {
+  metrics: EmotionMetricRow[];
+  perLabel: EmotionLabelRow[] | null;
+  significance: SignificanceRow[] | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <EmotionScoreTable metrics={metrics} significance={significance} />
+      <EmotionBars metrics={metrics} perLabel={perLabel} />
     </div>
   );
 }

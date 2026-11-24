@@ -1,14 +1,12 @@
 import { ArrowRight, ClipboardPaste, Loader2, MousePointerClick, ScanSearch, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
-import { api, type EmotionsResponse, type ExplainResponse, type ModelInfo } from "../api";
-import { EmotionPanel } from "../components/Emotions";
-import Explanation from "../components/Explanation";
-import ResultCard from "../components/ResultCard";
+import { api, type ModelInfo } from "../api";
 import { EXAMPLES } from "../examples";
 import { MODEL_NAMES, score } from "../format";
 import { type AsyncState, useAsync } from "../hooks";
+import { setLastAnalysis } from "../lastAnalysis";
 
 const DEFAULT_LIMIT = 5000;
 
@@ -49,7 +47,7 @@ function HowItWorks() {
         ))}
       </ol>
       <Link to="/results" className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline">
-        See the full evaluation <ArrowRight size={16} aria-hidden />
+        See how good our model is <ArrowRight size={16} aria-hidden />
       </Link>
     </section>
   );
@@ -57,9 +55,8 @@ function HowItWorks() {
 
 export default function Home() {
   const info = useAsync(api.modelInfo);
+  const navigate = useNavigate();
   const [text, setText] = useState("");
-  const [result, setResult] = useState<ExplainResponse | null>(null);
-  const [emotions, setEmotions] = useState<EmotionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -69,11 +66,10 @@ export default function Home() {
 
   function reset(next = "") {
     setText(next);
-    setResult(null);
-    setEmotions(null);
     setError(null);
   }
 
+  /** Analyze the post, then open the Results page with its result. */
   async function analyze() {
     if (!canSubmit) return;
     setLoading(true);
@@ -83,13 +79,10 @@ export default function Home() {
         api.explain(text),
         api.emotions(text).catch(() => null),
       ]);
-      setResult(explained);
-      setEmotions(emotionResult);
+      setLastAnalysis({ text, result: explained, emotions: emotionResult });
+      navigate("/results");
     } catch (e) {
-      setResult(null);
-      setEmotions(null);
       setError((e as Error).message);
-    } finally {
       setLoading(false);
     }
   }
@@ -172,23 +165,18 @@ export default function Home() {
           <p className="text-xs"><ModelBadge info={info} /></p>
         </section>
 
-        {result ? (
-          <ResultCard result={result} />
-        ) : (
-          <section className="card grid min-h-72 place-items-center p-8 text-center text-sm text-ink-3">
-            <div className="space-y-3">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-surface-2">
-                <ScanSearch size={22} aria-hidden />
-              </span>
-              <p>Your result will appear here.<br />Tip: press Ctrl + Enter to analyze.</p>
-            </div>
-          </section>
-        )}
+        <section className="card grid min-h-72 place-items-center p-8 text-center text-sm text-ink-3">
+          <div className="space-y-3">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-surface-2">
+              <ScanSearch size={22} aria-hidden />
+            </span>
+            <p>
+              Click <strong className="text-ink">Analyze</strong> and your result opens on the Results page.
+              <br />Tip: press Ctrl + Enter to analyze.
+            </p>
+          </div>
+        </section>
       </div>
-
-      {result && <Explanation result={result} />}
-
-      {result && <EmotionPanel result={emotions} />}
 
       <HowItWorks />
     </div>
